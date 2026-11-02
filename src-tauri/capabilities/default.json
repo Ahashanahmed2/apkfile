@@ -1,7 +1,3 @@
-{
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default",
-  "description": "Default capabilities",
-  "windows": ["main"],
-  "permissions": ["core:default"]
-}
+version https://git-lfs.github.com/spec/v1
+oid sha256:f1a8fd523292ee4834219645afee2456755e89a4e21fd13dee0f843050372742
+size 180
