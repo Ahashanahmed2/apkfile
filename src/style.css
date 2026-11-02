@@ -1,0 +1,140 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.app { max-width: 500px; margin: 0 auto; }
+
+h1 {
+  font-size: 1.6rem;
+  text-align: center;
+  margin-bottom: 20px;
+  color: #38bdf8;
+}
+
+.card {
+  background: #1e293b;
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.card h2 {
+  font-size: 1rem;
+  margin-bottom: 14px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.counter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.counter span {
+  font-size: 2.5rem;
+  font-weight: bold;
+  min-width: 80px;
+  text-align: center;
+  color: #38bdf8;
+}
+
+button {
+  background: #38bdf8;
+  color: #0f172a;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+button:active { background: #0ea5e9; }
+
+.counter button {
+  font-size: 1.4rem;
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+textarea {
+  width: 100%;
+  min-height: 100px;
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 0.95rem;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.row button { flex: 1; }
+
+#status {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: #4ade80;
+  min-height: 1.2em;
+}
+/* টেক্সট কালার ঠিক করার জন্য */
+body {
+  background-color: #1a1a2e !important; /* পুরো অ্যাপের ব্যাকগ্রাউন্ড ডার্ক */
+  color: #ffffff !important; /* ডিফল্ট লেখা সাদা */
+}
+
+/* কার্ডের ভেতরের লেখা কালো থেকে সাদা করা */
+.card-body {
+  color: #000000 !important; /* কার্ডের ভেতরের লেখা কালো (সাদা ব্যাকগ্রাউন্ডের জন্য) */
+}
+
+/* Tab Content (সারসংক্ষেপ/আনুষঙ্গিক বিষয়) এর লেখা */
+.tab-content {
+  color: #000000 !important;
+  background-color: #ffffff;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+/* List Group (সারসংক্ষেপ বাটন) */
+.list-group-item {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+  border-color: #dee2e6 !important;
+}
+
+.list-group-item.active {
+  background-color: #0d6efd !important;
+  color: #ffffff !important;
+}
+
+/* আয়াতের টেক্সট (সাদা লেখা কালো ব্যাকগ্রাউন্ডের ওপর) */
+.bg-secondary {
+  background-color: #343a40 !important;
+  color: #ffffff !important;
+}
+
+/* কার্ডের হেডার (বইয়ের নাম ও সুরার নাম) */
+.card-header {
+  background-color: #212529 !important;
+  color: #ffffff !important;
+}
