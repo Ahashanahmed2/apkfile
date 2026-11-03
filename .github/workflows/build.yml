@@ -1,7 +1,7 @@
 name: Build Tauri Android APK
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ] # ✅ দুটো ব্রাঞ্চেই কাজ করবে
   workflow_dispatch:
 
 jobs:
@@ -9,6 +9,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true # ✅ LFS ফাইল ডাউনলোড করার নির্দেশ
+
+      - name: Force Git LFS Pull
+        run: |
+          git lfs install
+          git lfs pull # ✅ নিশ্চিত করবে যে আসল ফাইলগুলো নেমেছে
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -42,7 +49,7 @@ jobs:
       - name: Init Android project
         run: npx tauri android init --ci
 
-      # ⬇️ এখানে নতুন আইকন ফিক্স স্টেপটি যোগ করা হলো ⬇️
+      # ⬇️ আইকন ফিক্স স্টেপ ⬇️
       - name: Fix Android Icons
         run: |
           cd src-tauri/gen/android/app/src/main/res/
@@ -65,7 +72,6 @@ jobs:
           mv mipmap-96 mipmap-xhdpi
           mv mipmap-144 mipmap-xxhdpi
           mv mipmap-192 mipmap-xxxhdpi
-      # ⬆️ নতুন স্টেপ শেষ ⬆️
 
       - name: Build APK
         run: npx tauri android build --apk
