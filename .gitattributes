@@ -3,5 +3,6 @@ src/data/qurans.json filter=lfs diff=lfs merge=lfs -text
 src/data/books.json filter=lfs diff=lfs merge=lfs -text
 src/data/subjects.json filter=lfs diff=lfs merge=lfs -text
 src/data/*.json filter=lfs diff=lfs merge=lfs -text
+src-tauri/tafsir.db filter=lfs diff=lfs merge=lfs -text
 src-tauri/tauri.conf.json !text !filter !merge !diff
 package.json !text !filter !merge !diff

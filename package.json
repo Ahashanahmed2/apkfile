@@ -10,6 +10,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "better-sqlite3": "^13.1.1",
     "bootstrap": "^5.3.0",
     "react": "^18.2.0",
     "react-bootstrap": "^2.8.0",
