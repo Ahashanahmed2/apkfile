@@ -1,7 +1,7 @@
 name: Build Tauri Android APK
 on:
   push:
-    branches: [ "main" ] # ✅ দুটো ব্রাঞ্চেই কাজ করবে
+    branches: [ "master" ] # ✅ দুটো ব্রাঞ্চেই কাজ করবে
   workflow_dispatch:
 
 jobs:
