@@ -1,7 +1,7 @@
 name: Build Tauri Android APK
 on:
   push:
-    branches: [ "master" ] # ✅ দুটো ব্রাঞ্চেই কাজ করবে
+    branches: [ "master" ]
   workflow_dispatch:
 
 jobs:
@@ -10,13 +10,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          lfs: true # ✅ LFS ফাইল ডাউনলোড করার নির্দেশ
+          lfs: true
 
-      - name: Force Git LFS Pull
+      - name: Force Git LFS Pull and Checkout
         run: |
           git lfs install
-          git lfs pull # ✅ নিশ্চিত করবে যে আসল ফাইলগুলো নেমেছে
-          git lfs checkout 
+          git lfs pull
+          git lfs checkout
+
+      - name: Verify LFS Files
+        run: |
+          echo "=== Checking tauri.conf.json ==="
+          head -c 50 src-tauri/tauri.conf.json
+          echo ""
+          echo "=== Checking tafsir.db size ==="
+          ls -lh src-tauri/tafsir.db
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -49,7 +58,7 @@ jobs:
       - name: Init Android project
         run: npx tauri android init --ci
 
-      # ⬇️ আইকন ফিক্স স্টেপ ⬇️
+      # আইকন ফিক্স স্টেপ
       - name: Fix Android Icons
         run: |
           cd src-tauri/gen/android/app/src/main/res/
