@@ -16,7 +16,7 @@ jobs:
         run: |
           git lfs install
           git lfs pull # ✅ নিশ্চিত করবে যে আসল ফাইলগুলো নেমেছে
-
+          git lfs checkout 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
