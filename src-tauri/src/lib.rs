@@ -1,49 +1,39 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::sync::Mutex;
+use std::fs;
 use tauri::Manager;
-
-struct CounterState(Mutex<i32>);
-
-#[tauri::command]
-fn increment(state: tauri::State<CounterState>, value: i32) -> i32 {
-    let mut c = state.0.lock().unwrap();
-    *c += value;
-    *c
-}
-
-fn note_path(app: &tauri::AppHandle) -> std::path::PathBuf {
-    let dir = app.path().app_data_dir().expect("no app data dir");
-    std::fs::create_dir_all(&dir).ok();
-    dir.join("note.txt")
-}
-
-#[tauri::command]
-fn save_note(app: tauri::AppHandle, content: String) -> Result<(), String> {
-    let path = note_path(&app);
-    std::fs::write(path, content).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn load_note(app: tauri::AppHandle) -> Result<String, String> {
-    let path = note_path(&app);
-    if path.exists() {
-        std::fs::read_to_string(path).map_err(|e| e.to_string())
-    } else {
-        Ok(String::new())
-    }
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(CounterState(Mutex::new(0)))
-        .invoke_handler(tauri::generate_handler![increment, save_note, load_note])
+        // ১. SQL প্লাগইন রেজিস্টার করুন
+        .plugin(tauri_plugin_sql::Builder::default().build())
+        // ২. অ্যাপ চালু হওয়ার সময় ডেটাবেস কপি করার সেটআপ
+        .setup(|app| {
+            let app_data_dir = app.path().app_data_dir().expect("AppData ডিরেক্টরি পাওয়া যায়নি");
+            let target_db = app_data_dir.join("tafsir.db");
+
+            // যদি ডেটাবেস আগে থেকে না থাকে, তবে রিসোর্স থেকে কপি করুন
+            if !target_db.exists() {
+                // রিসোর্স ডিরেক্টরি থেকে tafsir.db এর পাথ বের করুন
+                let resource_db = app.path()
+                    .resolve("tafsir.db", tauri::path::BaseDirectory::Resource)
+                    .expect("রিসোর্স ডেটাবেস পাওয়া যায়নি");
+                
+                // AppData ডিরেক্টরি তৈরি করুন এবং ফাইল কপি করুন
+                fs::create_dir_all(&app_data_dir).ok();
+                fs::copy(resource_db, &target_db).expect("ডেটাবেস কপি ব্যর্থ হয়েছে");
+                println!("✅ ডেটাবেস সফলভাবে AppData-তে কপি হয়েছে।");
+            } else {
+                println!("ℹ️ ডেটাবেস ইতিমধ্যে AppData-তে বিদ্যমান আছে।");
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
-// ডেস্কটপ এন্ট্রি পয়েন্ট (main ফাংশন)
+// ডেস্কটপ এন্ট্রি পয়েন্ট
 #[cfg(not(mobile))]
 fn main() {
     run();
