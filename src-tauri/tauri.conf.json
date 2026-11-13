@@ -24,6 +24,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": [
+    "tafsir.db"
+  ]
     "icon": [
       "icons/icon.png"
     ]
