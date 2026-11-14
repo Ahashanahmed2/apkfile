@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl, Modal, Button, Offcanvas, Badge } from 'react-bootstrap';
+import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl, Modal, Button, Offcanvas } from 'react-bootstrap';
 import Database from '@tauri-apps/plugin-sql';
 import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
 import { download } from '@tauri-apps/plugin-upload';
@@ -7,11 +7,13 @@ import { appDataDir, join } from '@tauri-apps/api/path';
 import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { open } from '@tauri-apps/plugin-opener'; // ✅ শেয়ার করার জন্য
+import { open } from '@tauri-apps/plugin-opener';
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
+const VERSION_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/version.json";
 
-// সার্চের শব্দ হাইলাইট করার ফাংশন
+const APP_DB_VERSION = "1.0"; // ✅ আপনার বর্তমান অ্যাপের ডেটাবেস ভার্সন
+
 const highlightText = (text, query) => {
   if (!text) return "";
   if (!query || query.trim() === "") return text;
@@ -28,7 +30,6 @@ const highlightText = (text, query) => {
 };
 
 export default function App() {
-  // ==== স্টেটসমূহ ====
   const [db, setDb] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingMsg, setLoadingMsg] = useState("অ্যাপ চালু হচ্ছে...");
@@ -36,31 +37,28 @@ export default function App() {
 
   const [booksData, setBooksData] = useState([]);
   const [selectedBook, setSelectedBook] = useState(null);
-  const [selectedSurah, setSelectedSurah] = useState("সব সূরা"); // ৪. সূরা ফিল্টার
-  
+  const [selectedSurah, setSelectedSurah] = useState("সব সূরা");
   const [searchQuery, setSearchQuery] = useState("");
   const [quransData, setQuransData] = useState([]);
 
-  // ১. ডার্ক মোড, ২. ফন্ট সাইজ, ৭. সেটিংস
   const [darkMode, setDarkMode] = useState(localStorage.getItem('theme') === 'dark');
   const [fontSize, setFontSize] = useState(Number(localStorage.getItem('fontSize')) || 18);
   const [showSettings, setShowSettings] = useState(false);
 
-  // ৬. সেভ করা তালিকা ও সার্চ
   const [savedItems, setSavedItems] = useState([]);
   const [showSavedModal, setShowSavedModal] = useState(false);
   const [savedSearchQuery, setSavedSearchQuery] = useState("");
 
-  // লেখক পরিচিতি
   const [showIntroModal, setShowIntroModal] = useState(false);
   const [introContent, setIntroContent] = useState({ title: "", body: "" });
 
-  // স্প্ল্যাশ স্ক্রিন (৮)
   const [showSplash, setShowSplash] = useState(true);
 
-  // ==== ইফেক্টসমূহ ====
+  // ✅ আপডেট স্টেট
+  const [updateAvailable, setUpdateAvailable] = useState(null);
+  const [updateNotes, setUpdateNotes] = useState("");
+
   useEffect(() => {
-    // ৮. ৩ সেকেন্ড পর স্প্ল্যাশ স্ক্রিন সরবে
     const timer = setTimeout(() => setShowSplash(false), 3000);
     return () => clearTimeout(timer);
   }, []);
@@ -71,17 +69,37 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // থিম ও ফন্ট সাইজ লোকাল স্টোরেজে সেভ
     localStorage.setItem('theme', darkMode ? 'dark' : 'light');
     localStorage.setItem('fontSize', fontSize.toString());
     document.body.style.backgroundColor = darkMode ? '#1a1a1a' : '#f8f9fa';
   }, [darkMode, fontSize]);
 
-  // ডেটাবেস লোড
   useEffect(() => {
     async function initDb() {
       try {
+        // ✅ ১. সার্ভার থেকে নতুন ভার্সন চেক করা
+        let newVersionData = null;
+        try {
+          const versionRes = await fetch(VERSION_URL);
+          if (versionRes.ok) {
+            newVersionData = await versionRes.json();
+          }
+        } catch (e) {
+          console.log("Version check failed");
+        }
+
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
+        const storedDbVersion = localStorage.getItem('dbVersion');
+
+        // ✅ ২. যদি ডেটাবেস থাকে কিন্তু ভার্সন না মেলে, তবে আপডেটের অপশন দেখাবে
+        if (dbExists && newVersionData && newVersionData.version !== storedDbVersion) {
+          setUpdateNotes(newVersionData.update_notes || "নতুন আপডেট পাওয়া গেছে।");
+          setUpdateAvailable(newVersionData.version);
+          setLoading(false);
+          return; 
+        }
+
+        // ৩. যদি ডেটাবেস না থাকে (প্রথমবার), তবে ডাউনলোড করবে
         if (!dbExists) {
           setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
           const appData = await appDataDir();
@@ -105,6 +123,10 @@ export default function App() {
           }, 1000);
 
           try { await download(DB_URL, dbPath); } finally { clearInterval(intervalId); }
+          
+          localStorage.setItem('dbVersion', newVersionData ? newVersionData.version : APP_DB_VERSION);
+        } else {
+          setLoadingMsg("ডেটাবেস লোড হচ্ছে...");
         }
 
         const database = await Database.load('sqlite:tafsir.db');
@@ -122,7 +144,6 @@ export default function App() {
     initDb();
   }, []);
 
-  // সার্চ ও ফিল্টার
   useEffect(() => {
     if (!db) return;
     async function fetchData() {
@@ -143,20 +164,15 @@ export default function App() {
     fetchData();
   }, [selectedBook, selectedSurah, searchQuery, db]);
 
-  // ==== হ্যান্ডেলারসমূহ ====
   const handleCopy = async (text) => {
-    try { await writeText(text); alert("কপি হয়েছে!"); } 
-    catch (e) { alert("কপি ব্যর্থ!"); }
+    try { await writeText(text); alert("কপি হয়েছে!"); } catch (e) { alert("কপি ব্যর্থ!"); }
   };
 
-  // ৫. শেয়ার ফাংশন
   const handleShare = async (text, title) => {
     try {
       const shareText = `${title}\n\n${text}\n\n(তাফসীর অ্যাপ থেকে সংগৃহীত)`;
       await open(`whatsapp://send?text=${encodeURIComponent(shareText)}`);
-    } catch (e) {
-      alert("শেয়ার করতে সমস্যা হয়েছে!");
-    }
+    } catch (e) { alert("শেয়ার করতে সমস্যা হয়েছে!"); }
   };
 
   const handleSave = (item, type, content) => {
@@ -175,13 +191,43 @@ export default function App() {
     localStorage.setItem('savedTafsir', JSON.stringify(updated));
   };
 
-  // ==== রেন্ডারিং ====
+  const handleUpdateDb = async () => {
+    setLoading(true);
+    setUpdateAvailable(null);
+    setLoadingMsg("নতুন ডেটাবেস ডাউনলোড হচ্ছে...");
+    try {
+      const appData = await appDataDir();
+      const dbPath = await join(appData, 'tafsir.db');
+      await remove('tafsir.db', { baseDir: BaseDirectory.AppData });
+      await download(DB_URL, dbPath);
+      localStorage.setItem('dbVersion', updateAvailable);
+      alert("আপডেট সফল হয়েছে! অ্যাপ রিস্টার্ট হবে।");
+      window.location.reload();
+    } catch (e) {
+      alert("আপডেট ব্যর্থ: " + e);
+      setLoading(false);
+    }
+  };
+
   if (showSplash) {
     return (
       <div className="d-flex flex-column justify-content-center align-items-center vh-100" style={{ background: '#1a1a1a', color: 'gold' }}>
         <h1 className="display-4 mb-3">☪️</h1>
         <h2>তাফসীর অ্যাপ</h2>
         <p>জ্ঞান অর্জনের সহজ পথ</p>
+      </div>
+    );
+  }
+
+  if (updateAvailable && !loading) {
+    return (
+      <div className="d-flex flex-column justify-content-center align-items-center vh-100 p-4 text-center" style={{ backgroundColor: '#1a1a1a', color: 'white' }}>
+        <h2 className="text-warning mb-3">🎉 নতুন আপডেট পাওয়া গেছে!</h2>
+        <div className="bg-secondary p-3 rounded mb-4" style={{ maxWidth: '400px', width: '100%' }}>
+          <p>{updateNotes}</p>
+        </div>
+        <Button variant="success" size="lg" onClick={handleUpdateDb}>এখনই আপডেট করুন</Button>
+        <Button variant="outline-light" className="mt-3" onClick={() => { setUpdateAvailable(null); setLoading(false); }}>পরে করব</Button>
       </div>
     );
   }
@@ -198,17 +244,12 @@ export default function App() {
     return <div className="p-4 bg-dark text-white vh-100"><h3 className="text-danger">এরর!</h3><p>{errorMsg}</p></div>;
   }
 
-  // কতগুলো ইউনিক সূরা আছে তা বের করা (৪)
   const uniqueSurahs = [...new Set(quransData.map(q => q.name).filter(Boolean))];
-
-  // ডার্ক মোড ক্লাস
   const themeClass = darkMode ? "bg-dark text-light" : "bg-light text-dark";
   const cardBg = darkMode ? "bg-secondary text-white" : "bg-light text-dark";
 
   return (
     <div className={themeClass} style={{ minHeight: '100vh', touchAction: 'pan-x pan-y pinch-zoom' }}>
-      
-      {/* নেভিগেশন বার */}
       <Navbar sticky="top" className="bg-warning px-2 shadow-sm">
         <Container fluid>
           <Dropdown>
@@ -228,26 +269,20 @@ export default function App() {
               ))}
             </Dropdown.Menu>
           </Dropdown>
-
-          {/* ৪. সূরা ফিল্টার */}
           <Form.Select size="sm" style={{ width: '130px' }} className="ms-2" value={selectedSurah} onChange={(e) => setSelectedSurah(e.target.value)}>
             <option value="সব সূরা">সব সূরা</option>
             {uniqueSurahs.map((s, i) => <option key={i} value={s}>{s}</option>)}
           </Form.Select>
-
           <Form className="d-flex mx-2 flex-grow-1">
             <FormControl type="search" size="sm" placeholder="সার্চ করুন..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
           </Form>
-
           <Button variant="dark" size="sm" className="me-1" onClick={() => setShowSavedModal(true)}>
             🔖 {savedItems.length}
           </Button>
-          {/* ৭. সেটিংস বাটন */}
           <Button variant="dark" size="sm" onClick={() => setShowSettings(true)}>⚙️</Button>
         </Container>
       </Navbar>
 
-      {/* মেইন কন্টেন্ট */}
       <Container fluid className="mt-3 pb-5">
         <Row>
           <Col>
@@ -261,14 +296,12 @@ export default function App() {
                     <span>{item.name} ({item.number})</span>
                   </Card.Header>
                   <Card.Body>
-                    {/* আয়াত */}
                     <div className="p-2 mb-3 rounded" style={{ whiteSpace: "pre-wrap", fontSize: `${fontSize}px`, backgroundColor: darkMode ? '#333' : '#e9ecef' }}>
                       {highlightText(item.verses, searchQuery)}
                       <span className="badge bg-warning text-dark ms-2 mt-2 d-inline-block">
                         [{item.name} - {item.number}:{item.versesNumber}]
                       </span>
                     </div>
-                    {/* আয়াতের বাটনসমূহ */}
                     <div className="d-flex gap-2 mb-3">
                       <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.verses)}>কপি</Button>
                       <Button variant="outline-info" size="sm" onClick={() => handleShare(item.verses, item.name)}>শেয়ার</Button>
@@ -318,7 +351,6 @@ export default function App() {
         </Row>
       </Container>
 
-      {/* ৭. সেটিংস প্যানেল (Offcanvas) */}
       <Offcanvas show={showSettings} onHide={() => setShowSettings(false)} placement="end" className={themeClass}>
         <Offcanvas.Header closeButton className="bg-dark text-white">
           <Offcanvas.Title>⚙️ সেটিংস</Offcanvas.Title>
@@ -335,19 +367,16 @@ export default function App() {
           </div>
           
           <h5>ডেটাবেস</h5>
-          <p className="small">ডেটাবেস আপডেট চেক করতে অ্যাপ ডেটা ক্লিয়ার করুন।</p>
+          <p className="small">নতুন ডেটাবেস পেলে অ্যাপ চালু হওয়ার সময় আপডেটের নোটিশ আসবে।</p>
         </Offcanvas.Body>
       </Offcanvas>
 
-      {/* সেভ করা তালিকার মডাল */}
       <Modal show={showSavedModal} onHide={() => setShowSavedModal(false)} size="lg" scrollable className={themeClass}>
         <Modal.Header closeButton className="bg-dark text-white">
           <Modal.Title>🔖 সেভ করা তালিকা</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {/* ৬. সেভ করা তালিকায় সার্চ */}
           <FormControl type="search" placeholder="সেভ করা তালিকায় সার্চ করুন..." className="mb-3" value={savedSearchQuery} onChange={(e) => setSavedSearchQuery(e.target.value)} />
-          
           {savedItems.length === 0 ? (
             <p className="text-center">কোনো তথ্য সেভ করা নেই!</p>
           ) : (
@@ -368,7 +397,6 @@ export default function App() {
         </Modal.Body>
       </Modal>
 
-      {/* লেখক পরিচিতির মডাল */}
       <Modal show={showIntroModal} onHide={() => setShowIntroModal(false)} size="lg" centered scrollable className={themeClass}>
         <Modal.Header closeButton className="bg-dark text-white">
           <Modal.Title>{introContent.title}</Modal.Title>
