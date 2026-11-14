@@ -5,7 +5,6 @@ import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
 import { download } from '@tauri-apps/plugin-upload';
 import { appDataDir, join } from '@tauri-apps/api/path';
 
-// Hugging Face Direct Link
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 
 const highlightText = (text, query) => {
@@ -32,29 +31,31 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [loadingMsg, setLoadingMsg] = useState("অ্যাপ চালু হচ্ছে...");
   const [errorMsg, setErrorMsg] = useState(null);
+  
+  // ✅ ডিবাগ লগ দেখানোর জন্য নতুন স্টেট
+  const [debugLog, setDebugLog] = useState("লগ অপেক্ষা করছে...");
 
   useEffect(() => {
     async function initDb() {
       try {
-        // ১. চেক করি ডেটাবেস আগে থেকে ডাউনলোড করা আছে কিনা
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         
         if (!dbExists) {
           setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
           
-          // ✅ অ্যাপের AppData ফোল্ডারের সম্পূর্ণ পাথ বের করা
           const appData = await appDataDir();
           const dbPath = await join(appData, 'tafsir.db');
           
-          // ✅ সঠিক প্যারামিটারসহ ডাউনলোড কল
           await download(
             DB_URL,
             dbPath,
             (progress, total) => {
-              // ✅ ডিবাগ করার জন্য কনসোলে দেখুন
-              console.log("Download raw data:", progress, total);
+              // ✅ স্ক্রিনে র-ডেটা দেখানোর জন্য
+              const rawData = `Raw Data -> progress: ${progress}, total: ${total}`;
+              setDebugLog(rawData);
+              
+              console.log(rawData); // কনসোলেও থাকবে
 
-              // ✅ BigInt বা String কে Number এ কনভার্ট করা
               const p = Number(progress);
               const t = Number(total);
 
@@ -64,7 +65,6 @@ export default function App() {
                 const mbTotal = (t / (1024 * 1024)).toFixed(2);
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
               } else {
-                // যদি total না পাওয়া যায়, তবে শুধু ডাউনলোড হওয়া MB দেখাবে
                 const mbDownloaded = !isNaN(p) ? (p / (1024 * 1024)).toFixed(2) : "0";
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${mbDownloaded} MB`);
               }
@@ -76,11 +76,9 @@ export default function App() {
           setLoadingMsg("ডেটাবেস লোড হচ্ছে...");
         }
 
-        // ২. SQLite ডেটাবেস ওপেন করা
         const database = await Database.load('sqlite:tafsir.db');
         setDb(database);
         
-        // ৩. ডেটা লোড করা
         const books = await database.select('SELECT * FROM books');
         setBooksData(books);
 
@@ -90,8 +88,8 @@ export default function App() {
       } catch (error) {
         console.error("DB Error:", error);
         setErrorMsg(error.toString() || "Unknown Database Error");
+        setDebugLog("Error: " + error.toString()); // এরর হলেও লগে দেখাবে
         
-        // ডাউনলোড ব্যর্থ হলে ভাঙা ফাইল ডিলিট করে দেব যাতে পরেরবার নতুন করে ডাউনলোড হয়
         try {
           await remove('tafsir.db', { baseDir: BaseDirectory.AppData });
         } catch (e) {}
@@ -131,6 +129,15 @@ export default function App() {
     return (
       <div className="d-flex flex-column justify-content-center align-items-center vh-100 bg-dark text-white text-center p-4">
         <h4>{loadingMsg}</h4>
+        
+        {/* ✅ স্ক্রিনে ডিবাগ লগ দেখানোর বক্স */}
+        <div 
+          className="mt-4 p-3 bg-secondary rounded text-warning" 
+          style={{ fontSize: '12px', wordBreak: 'break-all', fontFamily: 'monospace', width: '100%' }}
+        >
+          <strong>Debug Info:</strong><br />
+          {debugLog}
+        </div>
       </div>
     );
   }
@@ -143,12 +150,16 @@ export default function App() {
         <div className="bg-secondary p-3 rounded mt-3" style={{ wordBreak: 'break-all', fontFamily: 'monospace' }}>
           {errorMsg}
         </div>
+        <div className="bg-secondary p-3 rounded mt-3 text-warning" style={{ wordBreak: 'break-all', fontFamily: 'monospace', fontSize: '12px' }}>
+          {debugLog}
+        </div>
       </div>
     );
   }
 
   return (
     <div>
+      {/* ... আপনার মূল UI (Navbar, Dropdown, Cards) আগের মতোই থাকবে ... */}
       <Navbar sticky="top" className="bg-warning px-3">
         <Container fluid>
           <Dropdown>
