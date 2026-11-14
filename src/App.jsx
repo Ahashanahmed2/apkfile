@@ -51,14 +51,21 @@ export default function App() {
             DB_URL,
             dbPath,
             (progress, total) => {
-              // ✅ এখানে if এর পরিবর্তে progress ব্যবহার করা হয়েছে
-              if (total > 0) {
-                const percent = Math.round((progress / total) * 100);
-                const mbDownloaded = (progress / (1024 * 1024)).toFixed(2);
-                const mbTotal = (total / (1024 * 1024)).toFixed(2);
+              // ✅ ডিবাগ করার জন্য কনসোলে দেখুন
+              console.log("Download raw data:", progress, total);
+
+              // ✅ BigInt বা String কে Number এ কনভার্ট করা
+              const p = Number(progress);
+              const t = Number(total);
+
+              if (!isNaN(t) && t > 0) {
+                const percent = Math.round((p / t) * 100);
+                const mbDownloaded = (p / (1024 * 1024)).toFixed(2);
+                const mbTotal = (t / (1024 * 1024)).toFixed(2);
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
               } else {
-                const mbDownloaded = (progress / (1024 * 1024)).toFixed(2);
+                // যদি total না পাওয়া যায়, তবে শুধু ডাউনলোড হওয়া MB দেখাবে
+                const mbDownloaded = !isNaN(p) ? (p / (1024 * 1024)).toFixed(2) : "0";
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${mbDownloaded} MB`);
               }
             }
