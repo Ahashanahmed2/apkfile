@@ -47,29 +47,28 @@ export default function App() {
           const dbPath = await join(appData, 'tafsir.db');
           
           await download(
-            DB_URL,
-            dbPath,
-            (progress, total) => {
-              // ✅ স্ক্রিনে র-ডেটা দেখানোর জন্য
-              const rawData = `Raw Data -> progress: ${progress}, total: ${total}`;
-              setDebugLog(rawData);
-              
-              console.log(rawData); // কনসোলেও থাকবে
+          DB_URL,
+          dbPath,
+          (data) => {
+            // ✅ data হলো একটি অবজেক্ট
+            if (data && typeof data === 'object') {
+              const downloaded = data.progress || 0; // ডাউনলোড হওয়া বাইট
+              const total = data.contentLength || 0; // মোট ফাইল সাইজ
 
-              const p = Number(progress);
-              const t = Number(total);
+              setDebugLog(`Progress: ${downloaded} / ${total}`); // ডিবাগ লগ
 
-              if (!isNaN(t) && t > 0) {
-                const percent = Math.round((p / t) * 100);
-                const mbDownloaded = (p / (1024 * 1024)).toFixed(2);
-                const mbTotal = (t / (1024 * 1024)).toFixed(2);
+              if (total > 0) {
+                const percent = Math.round((downloaded / total) * 100);
+                const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
+                const mbTotal = (total / (1024 * 1024)).toFixed(2);
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
               } else {
-                const mbDownloaded = !isNaN(p) ? (p / (1024 * 1024)).toFixed(2) : "0";
+                const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${mbDownloaded} MB`);
               }
             }
-          );
+          }
+        );
           
           setLoadingMsg("ডাউনলোড সম্পন্ন! লোড হচ্ছে...");
         } else {
