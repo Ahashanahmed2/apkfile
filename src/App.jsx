@@ -7,12 +7,10 @@ import { appDataDir, join } from '@tauri-apps/api/path';
 import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
-import { open } from '@tauri-apps/plugin-opener';
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 const VERSION_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/version.json";
-
-const APP_DB_VERSION = "1.0"; // ✅ আপনার বর্তমান অ্যাপের ডেটাবেস ভার্সন
+const APP_DB_VERSION = "1.0"; // আপনার বর্তমান অ্যাপের ডেটাবেস ভার্সন
 
 const highlightText = (text, query) => {
   if (!text) return "";
@@ -53,8 +51,6 @@ export default function App() {
   const [introContent, setIntroContent] = useState({ title: "", body: "" });
 
   const [showSplash, setShowSplash] = useState(true);
-
-  // ✅ আপডেট স্টেট
   const [updateAvailable, setUpdateAvailable] = useState(null);
   const [updateNotes, setUpdateNotes] = useState("");
 
@@ -77,7 +73,6 @@ export default function App() {
   useEffect(() => {
     async function initDb() {
       try {
-        // ✅ ১. সার্ভার থেকে নতুন ভার্সন চেক করা
         let newVersionData = null;
         try {
           const versionRes = await fetch(VERSION_URL);
@@ -91,7 +86,6 @@ export default function App() {
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         const storedDbVersion = localStorage.getItem('dbVersion');
 
-        // ✅ ২. যদি ডেটাবেস থাকে কিন্তু ভার্সন না মেলে, তবে আপডেটের অপশন দেখাবে
         if (dbExists && newVersionData && newVersionData.version !== storedDbVersion) {
           setUpdateNotes(newVersionData.update_notes || "নতুন আপডেট পাওয়া গেছে।");
           setUpdateAvailable(newVersionData.version);
@@ -99,7 +93,6 @@ export default function App() {
           return; 
         }
 
-        // ৩. যদি ডেটাবেস না থাকে (প্রথমবার), তবে ডাউনলোড করবে
         if (!dbExists) {
           setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
           const appData = await appDataDir();
@@ -166,13 +159,6 @@ export default function App() {
 
   const handleCopy = async (text) => {
     try { await writeText(text); alert("কপি হয়েছে!"); } catch (e) { alert("কপি ব্যর্থ!"); }
-  };
-
-  const handleShare = async (text, title) => {
-    try {
-      const shareText = `${title}\n\n${text}\n\n(তাফসীর অ্যাপ থেকে সংগৃহীত)`;
-      await open(`whatsapp://send?text=${encodeURIComponent(shareText)}`);
-    } catch (e) { alert("শেয়ার করতে সমস্যা হয়েছে!"); }
   };
 
   const handleSave = (item, type, content) => {
@@ -304,7 +290,6 @@ export default function App() {
                     </div>
                     <div className="d-flex gap-2 mb-3">
                       <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.verses)}>কপি</Button>
-                      <Button variant="outline-info" size="sm" onClick={() => handleShare(item.verses, item.name)}>শেয়ার</Button>
                       <Button variant="outline-warning" size="sm" onClick={() => handleSave(item, 'verses', item.verses)}>সেভ</Button>
                     </div>
 
@@ -321,7 +306,6 @@ export default function App() {
                             <Tab.Pane eventKey="first">
                               <div className="d-flex justify-content-end mb-2 gap-1">
                                 <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.summary)}>কপি</Button>
-                                <Button variant="outline-info" size="sm" onClick={() => handleShare(item.summary, item.name + " - সারসংক্ষেপ")}>শেয়ার</Button>
                                 <Button variant="outline-secondary" size="sm" onClick={() => handleSave(item, 'summary', item.summary)}>সেভ</Button>
                               </div>
                               <div style={{ whiteSpace: "pre-wrap", fontSize: `${fontSize - 2}px` }}>
@@ -332,7 +316,6 @@ export default function App() {
                             <Tab.Pane eventKey="second">
                               <div className="d-flex justify-content-end mb-2 gap-1">
                                 <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.ancillary_issue || "কোন তথ্য নেই")}>কপি</Button>
-                                <Button variant="outline-info" size="sm" onClick={() => handleShare(item.ancillary_issue || "কোন তথ্য নেই", item.name + " - আনুষঙ্গিক")}>শেয়ার</Button>
                                 <Button variant="outline-secondary" size="sm" onClick={() => handleSave(item, 'ancillary', item.ancillary_issue || "কোন তথ্য নেই")}>সেভ</Button>
                               </div>
                               <div style={{ whiteSpace: "pre-wrap", fontSize: `${fontSize - 2}px` }}>
