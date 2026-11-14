@@ -19,6 +19,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_upload::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![get_file_size]) // ✅ কমান্ড রেজিস্টার
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
