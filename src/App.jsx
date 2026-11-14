@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl } from 'react-bootstrap';
 import Database from '@tauri-apps/plugin-sql';
-import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
+import { exists, BaseDirectory, remove, stat } from '@tauri-apps/plugin-fs'; // ✅ stat ইমপোর্ট
 import { download } from '@tauri-apps/plugin-upload';
 import { appDataDir, join } from '@tauri-apps/api/path';
-import { fetch } from '@tauri-apps/plugin-http'; // ✅ HTTP ফেচ ইমপোর্ট
+import { fetch } from '@tauri-apps/plugin-http';
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 
@@ -45,7 +45,7 @@ export default function App() {
           const appData = await appDataDir();
           const dbPath = await join(appData, 'tafsir.db');
           
-          // ✅ ১. সার্ভার থেকে ফাইলের মোট সাইজ বের করা (HEAD রিকোয়েস্ট)
+          // সার্ভার থেকে মোট সাইজ বের করা
           let totalFileSize = 0;
           try {
             const headResponse = await fetch(DB_URL, { method: 'HEAD' });
@@ -57,41 +57,42 @@ export default function App() {
             setDebugLog("Size fetch failed, using fallback...");
           }
 
-          // ফাইল সাইজ না পেলে ফলব্যাক (১৩৩ MB)
           if (totalFileSize === 0) {
              totalFileSize = 133 * 1024 * 1024;
           }
 
           setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
 
-          await download(
-            DB_URL,
-            dbPath,
-            (data) => {
-              if (data && typeof data === 'object') {
-                const downloaded = data.progress || 0; 
-                const total = totalFileSize; 
-
-                setDebugLog(`Downloaded: ${(downloaded / (1024 * 1024)).toFixed(2)} MB / ${(total / (1024 * 1024)).toFixed(2)} MB`);
-
-                if (total > 0) {
-                  const percent = Math.min(Math.round((downloaded / total) * 100), 100);
-                  const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
-                  const mbTotal = (total / (1024 * 1024)).toFixed(2);
-                  
-                  // ✅ স্ক্রিনে লাইভ আপডেট
-                  setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
-                }
+          // ✅ ফাইল সাইজ চেক করার জন্য ইন্টারভাল সেট করা
+          const intervalId = setInterval(async () => {
+            try {
+              // ডাউনলোড হওয়া ফাইলের বর্তমান সাইজ চেক করা
+              const fileInfo = await stat(dbPath);
+              if (fileInfo && fileInfo.size > 0) {
+                const downloaded = fileInfo.size;
+                const percent = Math.min(Math.round((downloaded / totalFileSize) * 100), 100);
+                const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
+                const mbTotal = (totalFileSize / (1024 * 1024)).toFixed(2);
+                
+                setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
+                setDebugLog(`Downloaded: ${mbDownloaded} MB / ${mbTotal} MB`);
               }
+            } catch (e) {
+              // ফাইল এখনো তৈরি না হলে কিছু করবে না
             }
-          );
+          }, 1000); // প্রতি ১ সেকেন্ডে চেক করবে
+
+          try {
+            await download(DB_URL, dbPath);
+          } finally {
+            clearInterval(intervalId); // ডাউনলোড শেষ হলে ইন্টারভাল বন্ধ
+          }
           
           setLoadingMsg("ডাউনলোড সম্পন্ন! লোড হচ্ছে...");
         } else {
           setLoadingMsg("ডেটাবেস লোড হচ্ছে...");
         }
 
-        // SQLite ডেটাবেস ওপেন করা
         const database = await Database.load('sqlite:tafsir.db');
         setDb(database);
         
@@ -145,8 +146,6 @@ export default function App() {
     return (
       <div className="d-flex flex-column justify-content-center align-items-center vh-100 bg-dark text-white text-center p-4">
         <h4>{loadingMsg}</h4>
-        
-        {/* ✅ স্ক্রিনে ডিবাগ লগ দেখানোর বক্স */}
         <div 
           className="mt-4 p-3 bg-secondary rounded text-warning" 
           style={{ fontSize: '12px', wordBreak: 'break-all', fontFamily: 'monospace', width: '100%' }}
