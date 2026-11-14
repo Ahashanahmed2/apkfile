@@ -9,6 +9,7 @@
     "sql:allow-execute",
     "sql:allow-select",
     "http:default",
+    "clipboard-manager:allow-write-text",
     {
       "identifier": "http:default",
       "allow": [
