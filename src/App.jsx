@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl } from 'react-bootstrap';
+import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl, Modal, Button } from 'react-bootstrap';
 import Database from '@tauri-apps/plugin-sql';
 import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
 import { download } from '@tauri-apps/plugin-upload';
 import { appDataDir, join } from '@tauri-apps/api/path';
 import { fetch } from '@tauri-apps/plugin-http';
-import { invoke } from '@tauri-apps/api/core'; // ✅ Rust কমান্ড কল করার জন্য
+import { invoke } from '@tauri-apps/api/core';
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 
@@ -33,7 +33,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [loadingMsg, setLoadingMsg] = useState("অ্যাপ চালু হচ্ছে...");
   const [errorMsg, setErrorMsg] = useState(null);
-  const [debugLog, setDebugLog] = useState("লগ অপেক্ষা করছে...");
+
+  // ✅ লেখক পরিচিতি মডালের জন্য স্টেট
+  const [showModal, setShowModal] = useState(false);
+  const [modalContent, setModalContent] = useState({ title: "", body: "" });
 
   useEffect(() => {
     async function initDb() {
@@ -46,7 +49,6 @@ export default function App() {
           const appData = await appDataDir();
           const dbPath = await join(appData, 'tafsir.db');
           
-          // ✅ ১. সার্ভার থেকে মোট সাইজ বের করা (HEAD রিকোয়েস্ট)
           let totalFileSize = 0;
           try {
             const headResponse = await fetch(DB_URL, { method: 'HEAD' });
@@ -54,41 +56,28 @@ export default function App() {
             if (contentLength) {
               totalFileSize = parseInt(contentLength, 10);
             }
-          } catch (err) {
-            setDebugLog("Size fetch failed, using fallback...");
-          }
+          } catch (err) {}
 
-          if (totalFileSize === 0) {
-             totalFileSize = 133 * 1024 * 1024; // fallback
-          }
+          if (totalFileSize === 0) totalFileSize = 133 * 1024 * 1024;
 
           setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
 
-          // ✅ ২. Rust থেকে ফাইল সাইজ চেক করার ইন্টারভাল
           const intervalId = setInterval(async () => {
             try {
               const downloaded = await invoke('get_file_size', { path: dbPath });
-              
               if (downloaded > 0) {
                 const percent = Math.min(Math.round((downloaded / totalFileSize) * 100), 100);
                 const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
                 const mbTotal = (totalFileSize / (1024 * 1024)).toFixed(2);
-                
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
-                setDebugLog(`Downloaded: ${mbDownloaded} MB / ${mbTotal} MB`);
-              } else {
-                setDebugLog(`Waiting for file to start...`);
               }
-            } catch (e) {
-              setDebugLog(`Error: ${e}`);
-            }
+            } catch (e) {}
           }, 1000);
 
           try {
-            // ✅ ৩. ডাউনলোড শুরু
             await download(DB_URL, dbPath);
           } finally {
-            clearInterval(intervalId); // ডাউনলোড শেষ হলে ইন্টারভাল বন্ধ
+            clearInterval(intervalId);
           }
           
           setLoadingMsg("ডাউনলোড সম্পন্ন! লোড হচ্ছে...");
@@ -96,7 +85,6 @@ export default function App() {
           setLoadingMsg("ডেটাবেস লোড হচ্ছে...");
         }
 
-        // ৪. SQLite ডেটাবেস ওপেন করা
         const database = await Database.load('sqlite:tafsir.db');
         setDb(database);
         
@@ -109,8 +97,6 @@ export default function App() {
       } catch (error) {
         console.error("DB Error:", error);
         setErrorMsg(error.toString() || "Unknown Database Error");
-        setDebugLog("Error: " + error.toString());
-        
         try {
           await remove('tafsir.db', { baseDir: BaseDirectory.AppData });
         } catch (e) {}
@@ -146,17 +132,16 @@ export default function App() {
     fetchFilteredData();
   }, [selectedBook, searchQuery, db]);
 
+  // ✅ মডাল ওপেন করার ফাংশন
+  const handleShowIntro = (bookTitle, introText) => {
+    setModalContent({ title: bookTitle, body: introText });
+    setShowModal(true);
+  };
+
   if (loading) {
     return (
       <div className="d-flex flex-column justify-content-center align-items-center vh-100 bg-dark text-white text-center p-4">
         <h4>{loadingMsg}</h4>
-        <div 
-          className="mt-4 p-3 bg-secondary rounded text-warning" 
-          style={{ fontSize: '12px', wordBreak: 'break-all', fontFamily: 'monospace', width: '100%' }}
-        >
-          <strong>Debug Info:</strong><br />
-          {debugLog}
-        </div>
       </div>
     );
   }
@@ -165,12 +150,8 @@ export default function App() {
     return (
       <div className="p-4 bg-dark text-white vh-100">
         <h3 className="text-danger">ডেটাবেস এরর!</h3>
-        <p className="mt-3">দয়া করে নিচের এররটি ডেভেলপারকে জানান:</p>
         <div className="bg-secondary p-3 rounded mt-3" style={{ wordBreak: 'break-all', fontFamily: 'monospace' }}>
           {errorMsg}
-        </div>
-        <div className="bg-secondary p-3 rounded mt-3 text-warning" style={{ wordBreak: 'break-all', fontFamily: 'monospace', fontSize: '12px' }}>
-          {debugLog}
         </div>
       </div>
     );
@@ -180,19 +161,40 @@ export default function App() {
     <div>
       <Navbar sticky="top" className="bg-warning px-3">
         <Container fluid>
-          <Dropdown>
-            <Dropdown.Toggle variant="success" id="dropdown-basic">
-              {selectedBook ? selectedBook : "সব বই"}
-            </Dropdown.Toggle>
-            <Dropdown.Menu style={{ maxHeight: '300px', overflowY: 'auto' }}>
-              <Dropdown.Item onClick={() => setSelectedBook(null)}>সব বই</Dropdown.Item>
-              {booksData.map((b, i) => (
-                <Dropdown.Item key={i} onClick={() => setSelectedBook(b.book)}>
-                  {b.book}
-                </Dropdown.Item>
-              ))}
-            </Dropdown.Menu>
-          </Dropdown>
+          {/* ✅ সার্চ করার সময় ড্রপডাউন লুকিয়ে যাবে (আগের মেসেজ অনুযায়ী) */}
+          {searchQuery.trim() === "" && (
+            <Dropdown>
+              <Dropdown.Toggle variant="success" id="dropdown-basic">
+                {selectedBook ? selectedBook : "সব বই"}
+              </Dropdown.Toggle>
+              <Dropdown.Menu style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                <Dropdown.Item onClick={() => setSelectedBook(null)}>সব বই</Dropdown.Item>
+                {booksData.map((b, i) => (
+                  <div key={i} className="d-flex justify-content-between align-items-center px-2 py-1 dropdown-item-custom">
+                    <span 
+                      onClick={() => setSelectedBook(b.book)} 
+                      style={{ cursor: 'pointer', flex: 1 }}
+                    >
+                      {b.book}
+                    </span>
+                    {/* ✅ লেখক পরিচিতি দেখার আইকন */}
+                    <Button 
+                      variant="outline-info" 
+                      size="sm" 
+                      className="ms-2 py-0 px-2"
+                      onClick={(e) => {
+                        e.stopPropagation(); // ড্রপডাউন বন্ধ হওয়া রোধ করতে
+                        handleShowIntro(b.book, b.Author_Introduction);
+                      }}
+                    >
+                      ℹ️
+                    </Button>
+                  </div>
+                ))}
+              </Dropdown.Menu>
+            </Dropdown>
+          )}
+
           <Form className="d-flex w-50">
             <FormControl
               type="search"
@@ -205,20 +207,7 @@ export default function App() {
       </Navbar>
 
       <Container fluid className="mt-3">
-        {selectedBook && (
-          <Row className="mb-4">
-            <Col>
-              {booksData.filter(b => b.book === selectedBook).map((book, idx) => (
-                <Card key={idx} className="mb-3 shadow-sm" bg="light" text="dark">
-                  <Card.Header className="bg-dark text-white text-center">{book.book} - লেখক পরিচিতি</Card.Header>
-                  <Card.Body style={{ whiteSpace: "pre-wrap", fontSize: "15px", color: "#000000", backgroundColor: "#f8f9fa" }}>
-                    {highlightText(book.Author_Introduction, searchQuery)}
-                  </Card.Body>
-                </Card>
-              ))}
-            </Col>
-          </Row>
-        )}
+        {/* ✅ আগের "বইয়ের পরিচিতি" সেকশনটি সরিয়ে দেওয়া হয়েছে, কারণ এটি এখন মডালে দেখাবে */}
 
         <Row>
           <Col>
@@ -272,6 +261,21 @@ export default function App() {
           </Col>
         </Row>
       </Container>
+
+      {/* ✅ লেখক পরিচিতি দেখানোর জন্য Modal */}
+      <Modal show={showModal} onHide={() => setShowModal(false)} size="lg" centered scrollable>
+        <Modal.Header closeButton className="bg-dark text-white">
+          <Modal.Title>{modalContent.title} - লেখক পরিচিতি</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ whiteSpace: "pre-wrap", fontSize: "15px", backgroundColor: "#f8f9fa", color: "#000" }}>
+          {modalContent.body}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowModal(false)}>
+            বন্ধ করুন
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 }
