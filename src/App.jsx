@@ -10,7 +10,7 @@ import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 const VERSION_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/version.json";
-const APP_DB_VERSION = "1.0"; // আপনার বর্তমান অ্যাপের ডেটাবেস ভার্সন
+const APP_DB_VERSION = "1.0";
 
 const highlightText = (text, query) => {
   if (!text) return "";
@@ -38,6 +38,9 @@ export default function App() {
   const [selectedSurah, setSelectedSurah] = useState("সব সূরা");
   const [searchQuery, setSearchQuery] = useState("");
   const [quransData, setQuransData] = useState([]);
+  
+  // ✅ নতুন স্টেট: সব সূরা লোড করার জন্য
+  const [uniqueSurahs, setUniqueSurahs] = useState([]);
 
   const [darkMode, setDarkMode] = useState(localStorage.getItem('theme') === 'dark');
   const [fontSize, setFontSize] = useState(Number(localStorage.getItem('fontSize')) || 18);
@@ -76,12 +79,8 @@ export default function App() {
         let newVersionData = null;
         try {
           const versionRes = await fetch(VERSION_URL);
-          if (versionRes.ok) {
-            newVersionData = await versionRes.json();
-          }
-        } catch (e) {
-          console.log("Version check failed");
-        }
+          if (versionRes.ok) newVersionData = await versionRes.json();
+        } catch (e) {}
 
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         const storedDbVersion = localStorage.getItem('dbVersion');
@@ -105,7 +104,6 @@ export default function App() {
             if (cl) totalFileSize = parseInt(cl, 10);
           } catch (err) {}
 
-          // ✅ এখানে MB এবং টোটাল সাইজ যোগ করা হলো
           const intervalId = setInterval(async () => {
             try {
               const downloaded = await invoke('get_file_size', { path: dbPath });
@@ -113,7 +111,6 @@ export default function App() {
                 const percent = Math.min(Math.round((downloaded / totalFileSize) * 100), 100);
                 const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
                 const mbTotal = (totalFileSize / (1024 * 1024)).toFixed(2);
-                
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
               }
             } catch (e) {}
@@ -130,6 +127,11 @@ export default function App() {
         setDb(database);
         const books = await database.select('SELECT * FROM books');
         setBooksData(books);
+        
+        // ✅ সব ইউনিক সূরা আলাদাভাবে লোড করা
+        const surahs = await database.select('SELECT DISTINCT name FROM qurans WHERE name IS NOT NULL ORDER BY name ASC');
+        setUniqueSurahs(surahs.map(s => s.name));
+
         const initialQurans = await database.select('SELECT * FROM qurans LIMIT 50');
         setQuransData(initialQurans);
       } catch (error) {
@@ -189,7 +191,28 @@ export default function App() {
       const appData = await appDataDir();
       const dbPath = await join(appData, 'tafsir.db');
       await remove('tafsir.db', { baseDir: BaseDirectory.AppData });
-      await download(DB_URL, dbPath);
+
+      let totalFileSize = 133 * 1024 * 1024;
+      try {
+        const headResponse = await fetch(DB_URL, { method: 'HEAD' });
+        const cl = headResponse.headers.get('content-length');
+        if (cl) totalFileSize = parseInt(cl, 10);
+      } catch (err) {}
+
+      const intervalId = setInterval(async () => {
+        try {
+          const downloaded = await invoke('get_file_size', { path: dbPath });
+          if (downloaded > 0) {
+            const percent = Math.min(Math.round((downloaded / totalFileSize) * 100), 100);
+            const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
+            const mbTotal = (totalFileSize / (1024 * 1024)).toFixed(2);
+            setLoadingMsg(`নতুন ডেটাবেস ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
+          }
+        } catch (e) {}
+      }, 1000);
+
+      try { await download(DB_URL, dbPath); } finally { clearInterval(intervalId); }
+      
       localStorage.setItem('dbVersion', updateAvailable);
       alert("আপডেট সফল হয়েছে! অ্যাপ রিস্টার্ট হবে।");
       window.location.reload();
@@ -234,12 +257,19 @@ export default function App() {
     return <div className="p-4 bg-dark text-white vh-100"><h3 className="text-danger">এরর!</h3><p>{errorMsg}</p></div>;
   }
 
-  const uniqueSurahs = [...new Set(quransData.map(q => q.name).filter(Boolean))];
   const themeClass = darkMode ? "bg-dark text-light" : "bg-light text-dark";
   const cardBg = darkMode ? "bg-secondary text-white" : "bg-light text-dark";
 
   return (
     <div className={themeClass} style={{ minHeight: '100vh', touchAction: 'pan-x pan-y pinch-zoom' }}>
+      
+      {/* ✅ মডালের ক্রস চিহ্ন ঠিক করার জন্য স্টাইল */}
+      <style>{`
+        .btn-close {
+          filter: invert(1) grayscale(100%) brightness(200%) !important;
+        }
+      `}</style>
+
       <Navbar sticky="top" className="bg-warning px-2 shadow-sm">
         <Container fluid>
           <Dropdown>
@@ -259,10 +289,12 @@ export default function App() {
               ))}
             </Dropdown.Menu>
           </Dropdown>
+          
           <Form.Select size="sm" style={{ width: '130px' }} className="ms-2" value={selectedSurah} onChange={(e) => setSelectedSurah(e.target.value)}>
             <option value="সব সূরা">সব সূরা</option>
             {uniqueSurahs.map((s, i) => <option key={i} value={s}>{s}</option>)}
           </Form.Select>
+          
           <Form className="d-flex mx-2 flex-grow-1">
             <FormControl type="search" size="sm" placeholder="সার্চ করুন..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
           </Form>
@@ -273,7 +305,8 @@ export default function App() {
         </Container>
       </Navbar>
 
-      <Container fluid className="mt-3 pb-5">
+      {/* ✅ প্যাডিং কমিয়ে লেখা সেন্টারে আনা হয়েছে */}
+      <Container fluid className="mt-2 pb-4 px-2">
         <Row>
           <Col>
             {quransData.length === 0 ? (
@@ -388,7 +421,8 @@ export default function App() {
         <Modal.Header closeButton className="bg-dark text-white">
           <Modal.Title>{introContent.title}</Modal.Title>
         </Modal.Header>
-        <Modal.Body style={{ whiteSpace: "pre-wrap", fontSize: "15px" }}>
+        {/* ✅ মডালের টেক্সট কালো এবং ব্যাকগ্রাউন্ড সাদা করা হয়েছে */}
+        <Modal.Body style={{ whiteSpace: "pre-wrap", fontSize: "15px", color: '#000000', backgroundColor: '#ffffff' }}>
           {introContent.body}
         </Modal.Body>
       </Modal>
