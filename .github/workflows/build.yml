@@ -37,9 +37,9 @@ jobs:
           echo "NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
 
       - name: Install dependencies
-          run: |
-            npm install --package-lock-only
-            npm install
+        run: |
+          npm install --package-lock-only
+          npm install
         
         
       - name: Force Install missing packages
