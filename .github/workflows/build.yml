@@ -38,7 +38,12 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
+        
+        
+      - name: Force Install missing packages
+        run: |
+          npm install @tauri-apps/plugin-clipboard-manager @tauri-apps/plugin-opener
+          
       - name: Init Android project
         run: npx tauri android init --ci
 
