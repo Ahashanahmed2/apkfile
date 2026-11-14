@@ -6,6 +6,7 @@ import { download } from '@tauri-apps/plugin-upload';
 import { appDataDir, join } from '@tauri-apps/api/path';
 import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
+import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 
@@ -34,9 +35,18 @@ export default function App() {
   const [loadingMsg, setLoadingMsg] = useState("অ্যাপ চালু হচ্ছে...");
   const [errorMsg, setErrorMsg] = useState(null);
 
-  // ✅ লেখক পরিচিতি মডালের জন্য স্টেট
   const [showModal, setShowModal] = useState(false);
   const [modalContent, setModalContent] = useState({ title: "", body: "" });
+
+  const [savedItems, setSavedItems] = useState([]);
+  const [showSavedModal, setShowSavedModal] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('savedTafsir');
+    if (saved) {
+      setSavedItems(JSON.parse(saved));
+    }
+  }, []);
 
   useEffect(() => {
     async function initDb() {
@@ -44,8 +54,7 @@ export default function App() {
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         
         if (!dbExists) {
-          setLoadingMsg("সার্ভার থেকে সাইজ চেক করা হচ্ছে...");
-          
+          setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
           const appData = await appDataDir();
           const dbPath = await join(appData, 'tafsir.db');
           
@@ -53,14 +62,10 @@ export default function App() {
           try {
             const headResponse = await fetch(DB_URL, { method: 'HEAD' });
             const contentLength = headResponse.headers.get('content-length');
-            if (contentLength) {
-              totalFileSize = parseInt(contentLength, 10);
-            }
+            if (contentLength) totalFileSize = parseInt(contentLength, 10);
           } catch (err) {}
 
           if (totalFileSize === 0) totalFileSize = 133 * 1024 * 1024;
-
-          setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
 
           const intervalId = setInterval(async () => {
             try {
@@ -79,7 +84,6 @@ export default function App() {
           } finally {
             clearInterval(intervalId);
           }
-          
           setLoadingMsg("ডাউনলোড সম্পন্ন! লোড হচ্ছে...");
         } else {
           setLoadingMsg("ডেটাবেস লোড হচ্ছে...");
@@ -95,7 +99,6 @@ export default function App() {
         setQuransData(initialQurans);
 
       } catch (error) {
-        console.error("DB Error:", error);
         setErrorMsg(error.toString() || "Unknown Database Error");
         try {
           await remove('tafsir.db', { baseDir: BaseDirectory.AppData });
@@ -132,7 +135,48 @@ export default function App() {
     fetchFilteredData();
   }, [selectedBook, searchQuery, db]);
 
-  // ✅ মডাল ওপেন করার ফাংশন
+  const handleCopy = async (text) => {
+    try {
+      await writeText(text);
+      alert("সফলভাবে কপি করা হয়েছে!");
+    } catch (e) {
+      alert("কপি করতে সমস্যা হয়েছে!");
+    }
+  };
+
+  const handleSave = (item, type, content) => {
+    if (!content) {
+      alert("সেভ করার জন্য কোনো তথ্য নেই!");
+      return;
+    }
+
+    const newItem = {
+      id: item._id,
+      book: item.book,
+      name: item.name,
+      number: item.number,
+      type: type,
+      content: content
+    };
+
+    const exists = savedItems.find(i => i.id === newItem.id && i.type === newItem.type);
+    if (exists) {
+      alert("এটি ইতিমধ্যে সেভ করা আছে!");
+      return;
+    }
+
+    const updated = [...savedItems, newItem];
+    setSavedItems(updated);
+    localStorage.setItem('savedTafsir', JSON.stringify(updated));
+    alert("সফলভাবে সেভ করা হয়েছে!");
+  };
+
+  const handleDeleteSaved = (index) => {
+    const updated = savedItems.filter((_, i) => i !== index);
+    setSavedItems(updated);
+    localStorage.setItem('savedTafsir', JSON.stringify(updated));
+  };
+
   const handleShowIntro = (bookTitle, introText) => {
     setModalContent({ title: bookTitle, body: introText });
     setShowModal(true);
@@ -150,7 +194,7 @@ export default function App() {
     return (
       <div className="p-4 bg-dark text-white vh-100">
         <h3 className="text-danger">ডেটাবেস এরর!</h3>
-        <div className="bg-secondary p-3 rounded mt-3" style={{ wordBreak: 'break-all', fontFamily: 'monospace' }}>
+        <div className="bg-secondary p-3 rounded mt-3" style={{ wordBreak: 'break-all' }}>
           {errorMsg}
         </div>
       </div>
@@ -161,7 +205,6 @@ export default function App() {
     <div>
       <Navbar sticky="top" className="bg-warning px-3">
         <Container fluid>
-          {/* ✅ সার্চ করার সময় ড্রপডাউন লুকিয়ে যাবে (আগের মেসেজ অনুযায়ী) */}
           {searchQuery.trim() === "" && (
             <Dropdown>
               <Dropdown.Toggle variant="success" id="dropdown-basic">
@@ -177,13 +220,12 @@ export default function App() {
                     >
                       {b.book}
                     </span>
-                    {/* ✅ লেখক পরিচিতি দেখার আইকন */}
                     <Button 
                       variant="outline-info" 
                       size="sm" 
                       className="ms-2 py-0 px-2"
                       onClick={(e) => {
-                        e.stopPropagation(); // ড্রপডাউন বন্ধ হওয়া রোধ করতে
+                        e.stopPropagation();
                         handleShowIntro(b.book, b.Author_Introduction);
                       }}
                     >
@@ -195,7 +237,7 @@ export default function App() {
             </Dropdown>
           )}
 
-          <Form className="d-flex w-50">
+          <Form className="d-flex w-50 me-2">
             <FormControl
               type="search"
               placeholder="কুরআন থেকে সার্চ করুন..."
@@ -203,12 +245,14 @@ export default function App() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </Form>
+
+          <Button variant="dark" onClick={() => setShowSavedModal(true)}>
+            🔖 সেভ করা ({savedItems.length})
+          </Button>
         </Container>
       </Navbar>
 
       <Container fluid className="mt-3">
-        {/* ✅ আগের "বইয়ের পরিচিতি" সেকশনটি সরিয়ে দেওয়া হয়েছে, কারণ এটি এখন মডালে দেখাবে */}
-
         <Row>
           <Col>
             {quransData.length === 0 ? (
@@ -218,9 +262,13 @@ export default function App() {
             ) : (
               quransData.map((item, index) => (
                 <Card key={index} className="mb-3 shadow-sm" bg="light" text="dark" border="secondary">
-                  <Card.Header className="d-flex justify-content-between bg-dark text-white">
+                  <Card.Header className="d-flex justify-content-between bg-dark text-white align-items-center">
                     <span>{item.book}</span>
-                    <span>{item.name} ({item.number})</span>
+                    <div>
+                      {/* ✅ আয়াতের জন্য আলাদা কপি ও সেভ বাটন */}
+                      <Button variant="outline-light" size="sm" className="me-1" onClick={() => handleCopy(item.verses)}>কপি</Button>
+                      <Button variant="outline-warning" size="sm" onClick={() => handleSave(item, 'verses', item.verses)}>সেভ</Button>
+                    </div>
                   </Card.Header>
                   <Card.Body style={{ backgroundColor: "#f8f9fa" }}>
                     <div className="bg-secondary text-light p-2 mb-3 rounded" style={{ whiteSpace: "pre-wrap", fontSize: "18px" }}>
@@ -230,7 +278,7 @@ export default function App() {
                       </span>
                     </div>
 
-                    <Tab.Container id="left-tabs-example" defaultActiveKey="first">
+                    <Tab.Container id={`tabs-${index}`} defaultActiveKey="first">
                       <Row>
                         <Col sm={4}>
                           <ListGroup>
@@ -241,11 +289,22 @@ export default function App() {
                         <Col sm={8}>
                           <Tab.Content>
                             <Tab.Pane eventKey="first">
+                              {/* ✅ সারসংক্ষেপের জন্য আলাদা কপি ও সেভ বাটন */}
+                              <div className="d-flex justify-content-end mb-2">
+                                <Button variant="outline-secondary" size="sm" className="me-1" onClick={() => handleCopy(item.summary)}>কপি</Button>
+                                <Button variant="outline-secondary" size="sm" onClick={() => handleSave(item, 'summary', item.summary)}>সেভ</Button>
+                              </div>
                               <div style={{ whiteSpace: "pre-wrap", fontSize: "15px", color: "#000000" }}>
                                 {highlightText(item.summary, searchQuery)}
                               </div>
                             </Tab.Pane>
+                            
                             <Tab.Pane eventKey="second">
+                              {/* ✅ আনুষঙ্গিক বিষয়ের জন্য আলাদা কপি ও সেভ বাটন */}
+                              <div className="d-flex justify-content-end mb-2">
+                                <Button variant="outline-secondary" size="sm" className="me-1" onClick={() => handleCopy(item.ancillary_issue || "কোন তথ্য নেই")}>কপি</Button>
+                                <Button variant="outline-secondary" size="sm" onClick={() => handleSave(item, 'ancillary', item.ancillary_issue || "কোন তথ্য নেই")}>সেভ</Button>
+                              </div>
                               <div style={{ whiteSpace: "pre-wrap", fontSize: "15px", color: "#000000" }}>
                                 {highlightText(item.ancillary_issue || "কোন তথ্য নেই", searchQuery)}
                               </div>
@@ -262,7 +321,7 @@ export default function App() {
         </Row>
       </Container>
 
-      {/* ✅ লেখক পরিচিতি দেখানোর জন্য Modal */}
+      {/* লেখক পরিচিতির মডাল */}
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg" centered scrollable>
         <Modal.Header closeButton className="bg-dark text-white">
           <Modal.Title>{modalContent.title} - লেখক পরিচিতি</Modal.Title>
@@ -271,10 +330,32 @@ export default function App() {
           {modalContent.body}
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowModal(false)}>
-            বন্ধ করুন
-          </Button>
+          <Button variant="secondary" onClick={() => setShowModal(false)}>বন্ধ করুন</Button>
         </Modal.Footer>
+      </Modal>
+
+      {/* সেভ করা তালিকা মডাল */}
+      <Modal show={showSavedModal} onHide={() => setShowSavedModal(false)} size="lg" scrollable>
+        <Modal.Header closeButton className="bg-dark text-white">
+          <Modal.Title>🔖 সেভ করা তাফসীরসমূহ</Modal.Title>
+        </Modal.Header>
+        <Modal.Body style={{ backgroundColor: "#f8f9fa" }}>
+          {savedItems.length === 0 ? (
+            <p className="text-center">আপনি এখনো কোনো তাফসীর সেভ করেননি!</p>
+          ) : (
+            savedItems.map((s, idx) => (
+              <Card key={idx} className="mb-3">
+                <Card.Header className="d-flex justify-content-between bg-secondary text-white align-items-center">
+                  <span>{s.book} - {s.name} ({s.type === 'verses' ? 'আয়াত' : s.type === 'summary' ? 'সারসংক্ষেপ' : 'আনুষঙ্গিক'})</span>
+                  <Button variant="danger" size="sm" onClick={() => handleDeleteSaved(idx)}>ডিলিট</Button>
+                </Card.Header>
+                <Card.Body>
+                  <div style={{ whiteSpace: "pre-wrap", fontSize: "14px" }}>{s.content}</div>
+                </Card.Body>
+              </Card>
+            ))
+          )}
+        </Modal.Body>
       </Modal>
     </div>
   );
