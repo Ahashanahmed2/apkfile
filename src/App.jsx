@@ -4,6 +4,7 @@ import Database from '@tauri-apps/plugin-sql';
 import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
 import { download } from '@tauri-apps/plugin-upload';
 import { appDataDir, join } from '@tauri-apps/api/path';
+import { fetch } from '@tauri-apps/plugin-http'; // ✅ HTTP ফেচ ইমপোর্ট
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 
@@ -31,8 +32,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [loadingMsg, setLoadingMsg] = useState("অ্যাপ চালু হচ্ছে...");
   const [errorMsg, setErrorMsg] = useState(null);
-  
-  // ✅ ডিবাগ লগ দেখানোর জন্য নতুন স্টেট
   const [debugLog, setDebugLog] = useState("লগ অপেক্ষা করছে...");
 
   useEffect(() => {
@@ -41,40 +40,58 @@ export default function App() {
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         
         if (!dbExists) {
-          setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
+          setLoadingMsg("সার্ভার থেকে সাইজ চেক করা হচ্ছে...");
           
           const appData = await appDataDir();
           const dbPath = await join(appData, 'tafsir.db');
           
+          // ✅ ১. সার্ভার থেকে ফাইলের মোট সাইজ বের করা (HEAD রিকোয়েস্ট)
+          let totalFileSize = 0;
+          try {
+            const headResponse = await fetch(DB_URL, { method: 'HEAD' });
+            const contentLength = headResponse.headers.get('content-length');
+            if (contentLength) {
+              totalFileSize = parseInt(contentLength, 10);
+            }
+          } catch (err) {
+            setDebugLog("Size fetch failed, using fallback...");
+          }
+
+          // ফাইল সাইজ না পেলে ফলব্যাক (১৩৩ MB)
+          if (totalFileSize === 0) {
+             totalFileSize = 133 * 1024 * 1024;
+          }
+
+          setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
+
           await download(
-          DB_URL,
-          dbPath,
-          (data) => {
-            // ✅ data হলো একটি অবজেক্ট
-            if (data && typeof data === 'object') {
-              const downloaded = data.progress || 0; // ডাউনলোড হওয়া বাইট
-              const total = data.contentLength || 0; // মোট ফাইল সাইজ
+            DB_URL,
+            dbPath,
+            (data) => {
+              if (data && typeof data === 'object') {
+                const downloaded = data.progress || 0; 
+                const total = totalFileSize; 
 
-              setDebugLog(`Progress: ${downloaded} / ${total}`); // ডিবাগ লগ
+                setDebugLog(`Downloaded: ${(downloaded / (1024 * 1024)).toFixed(2)} MB / ${(total / (1024 * 1024)).toFixed(2)} MB`);
 
-              if (total > 0) {
-                const percent = Math.round((downloaded / total) * 100);
-                const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
-                const mbTotal = (total / (1024 * 1024)).toFixed(2);
-                setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
-              } else {
-                const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
-                setLoadingMsg(`ডাউনলোড হচ্ছে: ${mbDownloaded} MB`);
+                if (total > 0) {
+                  const percent = Math.min(Math.round((downloaded / total) * 100), 100);
+                  const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
+                  const mbTotal = (total / (1024 * 1024)).toFixed(2);
+                  
+                  // ✅ স্ক্রিনে লাইভ আপডেট
+                  setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
+                }
               }
             }
-          }
-        );
+          );
           
           setLoadingMsg("ডাউনলোড সম্পন্ন! লোড হচ্ছে...");
         } else {
           setLoadingMsg("ডেটাবেস লোড হচ্ছে...");
         }
 
+        // SQLite ডেটাবেস ওপেন করা
         const database = await Database.load('sqlite:tafsir.db');
         setDb(database);
         
@@ -87,7 +104,7 @@ export default function App() {
       } catch (error) {
         console.error("DB Error:", error);
         setErrorMsg(error.toString() || "Unknown Database Error");
-        setDebugLog("Error: " + error.toString()); // এরর হলেও লগে দেখাবে
+        setDebugLog("Error: " + error.toString());
         
         try {
           await remove('tafsir.db', { baseDir: BaseDirectory.AppData });
@@ -158,7 +175,6 @@ export default function App() {
 
   return (
     <div>
-      {/* ... আপনার মূল UI (Navbar, Dropdown, Cards) আগের মতোই থাকবে ... */}
       <Navbar sticky="top" className="bg-warning px-3">
         <Container fluid>
           <Dropdown>
