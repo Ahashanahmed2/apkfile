@@ -3,7 +3,9 @@ import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, Form
 import Database from '@tauri-apps/plugin-sql';
 import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
 import { download } from '@tauri-apps/plugin-upload';
+import { appDataDir, join } from '@tauri-apps/api/path'; // ✅ পাথ বের করার জন্য ইমপোর্ট
 
+// Hugging Face Direct Link
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 
 const highlightText = (text, query) => {
@@ -34,26 +36,32 @@ export default function App() {
   useEffect(() => {
     async function initDb() {
       try {
+        // ১. চেক করি ডেটাবেস আগে থেকে ডাউনলোড করা আছে কিনা
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         
         if (!dbExists) {
           setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
           
+          // ✅ অ্যাপের AppData ফোল্ডারের সম্পূর্ণ পাথ বের করা
+          const appData = await appDataDir();
+          const dbPath = await join(appData, 'tafsir.db');
+          
+          // ✅ সঠিক প্যারামিটারসহ ডাউনলোড কল
           await download(
             DB_URL,
-            'tafsir.db',
-            (progress, total) => {
+            dbPath,
+            (progress, progressTotal, total) => {
+              // প্রোগ্রেস লজিক (progressTotal হলো মোট ডাউনলোড হওয়া বাইট)
               if (total > 0) {
-                const percent = Math.round((progress / total) * 100);
-                const mbDownloaded = (progress / (1024 * 1024)).toFixed(2);
+                const percent = Math.round((progressTotal / total) * 100);
+                const mbDownloaded = (progressTotal / (1024 * 1024)).toFixed(2);
                 const mbTotal = (total / (1024 * 1024)).toFixed(2);
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
               } else {
-                const mbDownloaded = (progress / (1024 * 1024)).toFixed(2);
+                const mbDownloaded = (progressTotal / (1024 * 1024)).toFixed(2);
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${mbDownloaded} MB`);
               }
-            },
-            { baseDir: BaseDirectory.AppData }
+            }
           );
           
           setLoadingMsg("ডাউনলোড সম্পন্ন! লোড হচ্ছে...");
@@ -61,9 +69,11 @@ export default function App() {
           setLoadingMsg("ডেটাবেস লোড হচ্ছে...");
         }
 
+        // ২. SQLite ডেটাবেস ওপেন করা
         const database = await Database.load('sqlite:tafsir.db');
         setDb(database);
         
+        // ৩. ডেটা লোড করা
         const books = await database.select('SELECT * FROM books');
         setBooksData(books);
 
@@ -73,6 +83,8 @@ export default function App() {
       } catch (error) {
         console.error("DB Error:", error);
         setErrorMsg(error.toString() || "Unknown Database Error");
+        
+        // ডাউনলোড ব্যর্থ হলে ভাঙা ফাইল ডিলিট করে দেব যাতে পরেরবার নতুন করে ডাউনলোড হয়
         try {
           await remove('tafsir.db', { baseDir: BaseDirectory.AppData });
         } catch (e) {}
