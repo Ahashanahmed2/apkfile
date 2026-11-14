@@ -1,113 +1,127 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl } from 'react-bootstrap';
 import Database from '@tauri-apps/plugin-sql';
+import { fetch } from '@tauri-apps/plugin-http';
+import { writeFile, exists, BaseDirectory } from '@tauri-apps/plugin-fs';
 
-// সার্চের শব্দ হাইলাইট করার ফাংশন
+// ✅ Hugging Face এর সঠিক resolve লিংক (blob নয়)
+const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
+
 const highlightText = (text, query) => {
   if (!text) return "";
   if (!query || query.trim() === "") return text;
-
-  // ইউজার যা লিখেছে তার থেকে স্পেশাল ক্যারেক্টার মুছে ফেলা (যাতে regex ভাঙে না)
   const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const regex = new RegExp(`(${escapedQuery})`, 'gi');
-  
-  // টেক্সটকে ভেঙে ভেঙে খোঁজা এবং ম্যাচ পেলে <mark> ট্যাগ দেওয়া
   const parts = text.split(regex);
-  
   return parts.map((part, index) => 
     regex.test(part) ? (
       <mark key={index} style={{ backgroundColor: '#ffeb3b', padding: '0 2px', borderRadius: '3px', color: '#000' }}>
         {part}
       </mark>
-    ) : (
-      part
-    )
+    ) : ( part )
   );
 };
 
 export default function App() {
   const [selectedBook, setSelectedBook] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  
-  // ডেটাবেসের জন্য নতুন স্টেট
   const [db, setDb] = useState(null);
   const [booksData, setBooksData] = useState([]);
   const [quransData, setQuransData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMsg, setLoadingMsg] = useState("অ্যাপ চালু হচ্ছে...");
+  const [errorMsg, setErrorMsg] = useState(null);
 
-  // ১. অ্যাপ চালু হলে ডেটাবেস কানেক্ট এবং প্রাথমিক ডেটা লোড করা
   useEffect(() => {
     async function initDb() {
       try {
-        // ডেটাবেস লোড (Rust সাইডে ফাইলটি AppData-তে কপি হয়ে থাকবে)
+        // ১. চেক করি ডেটাবেস আগে থেকে ডাউনলোড করা আছে কিনা
+        const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
+        
+        if (!dbExists) {
+          setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে... (১৩৫ MB, ইন্টারনেট কানেকশন রাখুন)");
+          
+          // ২. Hugging Face থেকে ডেটাবেস ডাউনলোড
+          const response = await fetch(DB_URL);
+          if (!response.ok) throw new Error(`ডাউনলোড ফেইল করেছে। স্ট্যাটাস: ${response.status}`);
+          
+          const buffer = await response.arrayBuffer();
+          
+          // ৩. ফোনের AppData-তে সেভ করা
+          await writeFile('tafsir.db', new Uint8Array(buffer), { baseDir: BaseDirectory.AppData });
+          setLoadingMsg("ডেটাবেস ডাউনলোড সম্পন্ন! লোড হচ্ছে...");
+        } else {
+          setLoadingMsg("ডেটাবেস লোড হচ্ছে...");
+        }
+
+        // ৪. SQLite ডেটাবেস ওপেন করা
         const database = await Database.load('sqlite:tafsir.db');
         setDb(database);
-
-        // বইয়ের তালিকা লোড করা (ড্রপডাউনের জন্য)
+        
+        // ৫. ডেটা লোড করা
         const books = await database.select('SELECT * FROM books');
         setBooksData(books);
 
-        // প্রাথমিকভাবে প্রথম ৫০টি তাফসির লোড করা (সব একসাথে না করে)
         const initialQurans = await database.select('SELECT * FROM qurans LIMIT 50');
         setQuransData(initialQurans);
-        
+
       } catch (error) {
-        console.error("ডেটাবেস লোড করতে সমস্যা হয়েছে:", error);
+        console.error("DB Error:", error);
+        setErrorMsg(error.toString() || "Unknown Database Error");
       } finally {
         setLoading(false);
       }
     }
-    
     initDb();
   }, []);
 
-  // ২. সার্চ এবং ফিল্টার লজিক (ডেটাবেসে কুয়েরি করে)
   useEffect(() => {
-    if (!db) return; // ডেটাবেস রেডি না হলে কিছু করবে না
-
+    if (!db) return;
     async function fetchFilteredData() {
       let query = 'SELECT * FROM qurans WHERE 1=1';
       const params = [];
-
-      // যদি নির্দিষ্ট কোনো বই সিলেক্ট করা থাকে
       if (selectedBook) {
         query += ' AND book = ?';
         params.push(selectedBook);
       }
-
-      // যদি সার্চ বক্সে কিছু লেখা থাকে
       if (searchQuery.trim() !== '') {
         query += ' AND (verses LIKE ? OR name LIKE ? OR summary LIKE ? OR ancillary_issue LIKE ?)';
         const searchParam = `%${searchQuery}%`;
         params.push(searchParam, searchParam, searchParam, searchParam);
       }
-
-      // পারফরম্যান্সের জন্য একসাথে ১০০টির বেশি রেজাল্ট লোড না করা
       query += ' LIMIT 100'; 
-
       try {
         const results = await db.select(query, params);
         setQuransData(results);
       } catch (err) {
-        console.error("সার্চ করতে সমস্যা হয়েছে:", err);
+        console.error("Search error:", err);
       }
     }
-
     fetchFilteredData();
   }, [selectedBook, searchQuery, db]);
 
-  // ৩. লোডিং স্ক্রিন (যখন ডেটা আসতে সময় নিচ্ছে)
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center vh-100">
-        <h4>ডেটা লোড হচ্ছে... অনুগ্রহ করে অপেক্ষা করুন।</h4>
+      <div className="d-flex justify-content-center align-items-center vh-100 bg-dark text-white text-center p-4">
+        <h4>{loadingMsg}</h4>
+      </div>
+    );
+  }
+
+  if (errorMsg) {
+    return (
+      <div className="p-4 bg-dark text-white vh-100">
+        <h3 className="text-danger">ডেটাবেস এরর!</h3>
+        <p className="mt-3">দয়া করে নিচের এররটি ডেভেলপারকে জানান:</p>
+        <div className="bg-secondary p-3 rounded mt-3" style={{ wordBreak: 'break-all', fontFamily: 'monospace' }}>
+          {errorMsg}
+        </div>
       </div>
     );
   }
 
   return (
     <div>
-      {/* টপ বার */}
       <Navbar sticky="top" className="bg-warning px-3">
         <Container fluid>
           <Dropdown>
@@ -123,7 +137,6 @@ export default function App() {
               ))}
             </Dropdown.Menu>
           </Dropdown>
-
           <Form className="d-flex w-50">
             <FormControl
               type="search"
@@ -136,7 +149,6 @@ export default function App() {
       </Navbar>
 
       <Container fluid className="mt-3">
-        {/* বইয়ের পরিচিতি */}
         {selectedBook && (
           <Row className="mb-4">
             <Col>
@@ -152,11 +164,10 @@ export default function App() {
           </Row>
         )}
 
-        {/* কুরআনের আয়াত ও তাফসীর লিস্ট */}
         <Row>
           <Col>
             {quransData.length === 0 ? (
-              <div className="text-center mt-5">
+              <div className="text-center mt-5 bg-dark text-white py-4">
                 <h5>কোনো ফলাফল পাওয়া যায়নি!</h5>
               </div>
             ) : (

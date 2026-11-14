@@ -10,6 +10,8 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@tauri-apps/plugin-fs": "^2.7.1",
+    "@tauri-apps/plugin-http": "^2.9.0",
     "@tauri-apps/plugin-sql": "^2.6.0",
     "better-sqlite3": "^13.1.1",
     "bootstrap": "^5.3.0",

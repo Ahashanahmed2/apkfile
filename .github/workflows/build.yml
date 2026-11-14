@@ -1,7 +1,7 @@
 name: Build Tauri Android APK
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master" ]
   workflow_dispatch:
 
 jobs:
@@ -41,31 +41,6 @@ jobs:
 
       - name: Init Android project
         run: npx tauri android init --ci
-
-      # ⬇️ এখানে নতুন আইকন ফিক্স স্টেপটি যোগ করা হলো ⬇️
-      - name: Fix Android Icons
-        run: |
-          cd src-tauri/gen/android/app/src/main/res/
-          rm -rf mipmap-*
-          
-          sudo apt-get install -y imagemagick
-          
-          for size in 48 72 96 144 192; do
-            mkdir -p mipmap-${size}
-          done
-          
-          convert ../../../../../../icons/icon.png -resize 48x48 mipmap-48/ic_launcher.png
-          convert ../../../../../../icons/icon.png -resize 72x72 mipmap-72/ic_launcher.png
-          convert ../../../../../../icons/icon.png -resize 96x96 mipmap-96/ic_launcher.png
-          convert ../../../../../../icons/icon.png -resize 144x144 mipmap-144/ic_launcher.png
-          convert ../../../../../../icons/icon.png -resize 192x192 mipmap-192/ic_launcher.png
-          
-          mv mipmap-48 mipmap-mdpi
-          mv mipmap-72 mipmap-hdpi
-          mv mipmap-96 mipmap-xhdpi
-          mv mipmap-144 mipmap-xxhdpi
-          mv mipmap-192 mipmap-xxxhdpi
-      # ⬆️ নতুন স্টেপ শেষ ⬆️
 
       - name: Build APK
         run: npx tauri android build --apk
