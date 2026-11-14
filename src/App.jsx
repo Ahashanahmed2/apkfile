@@ -3,7 +3,7 @@ import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, Form
 import Database from '@tauri-apps/plugin-sql';
 import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
 import { download } from '@tauri-apps/plugin-upload';
-import { appDataDir, join } from '@tauri-apps/api/path'; // ✅ পাথ বের করার জন্য ইমপোর্ট
+import { appDataDir, join } from '@tauri-apps/api/path';
 
 // Hugging Face Direct Link
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
@@ -51,14 +51,14 @@ export default function App() {
             DB_URL,
             dbPath,
             (progress, total) => {
-              // ✅ এইখানে শুধু ২টি প্যারামিটার আছে: progress (মোট ডাউনলোড হওয়া) এবং total (মোট সাইজ)
+              // ✅ এখানে if এর পরিবর্তে progress ব্যবহার করা হয়েছে
               if (total > 0) {
                 const percent = Math.round((progress / total) * 100);
                 const mbDownloaded = (progress / (1024 * 1024)).toFixed(2);
                 const mbTotal = (total / (1024 * 1024)).toFixed(2);
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
               } else {
-                const mbDownloaded = (if / (1024 * 1024)).toFixed(2);
+                const mbDownloaded = (progress / (1024 * 1024)).toFixed(2);
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${mbDownloaded} MB`);
               }
             }
@@ -77,7 +77,7 @@ export default function App() {
         const books = await database.select('SELECT * FROM books');
         setBooksData(books);
 
-        const it = await database.select('SELECT * FROM qurans LIMIT 50');
+        const initialQurans = await database.select('SELECT * FROM qurans LIMIT 50');
         setQuransData(initialQurans);
 
       } catch (error) {
