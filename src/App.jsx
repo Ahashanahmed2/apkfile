@@ -105,12 +105,16 @@ export default function App() {
             if (cl) totalFileSize = parseInt(cl, 10);
           } catch (err) {}
 
+          // ✅ এখানে MB এবং টোটাল সাইজ যোগ করা হলো
           const intervalId = setInterval(async () => {
             try {
               const downloaded = await invoke('get_file_size', { path: dbPath });
               if (downloaded > 0) {
                 const percent = Math.min(Math.round((downloaded / totalFileSize) * 100), 100);
-                setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}%`);
+                const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
+                const mbTotal = (totalFileSize / (1024 * 1024)).toFixed(2);
+                
+                setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
               }
             } catch (e) {}
           }, 1000);
