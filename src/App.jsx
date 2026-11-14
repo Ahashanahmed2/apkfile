@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl } from 'react-bootstrap';
 import Database from '@tauri-apps/plugin-sql';
-import { fetch } from '@tauri-apps/plugin-http';
-import { writeFile, exists, BaseDirectory } from '@tauri-apps/plugin-fs';
+import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
+import { download } from '@tauri-apps/plugin-upload';
 
-// ✅ Hugging Face এর সঠিক resolve লিংক (blob নয়)
+// Hugging Face Direct Link
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 
 const highlightText = (text, query) => {
@@ -39,26 +39,37 @@ export default function App() {
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         
         if (!dbExists) {
-          setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে... (১৩৫ MB, ইন্টারনেট কানেকশন রাখুন)");
+          setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে... (দয়া করে অপেক্ষা করুন)");
           
-          // ২. Hugging Face থেকে ডেটাবেস ডাউনলোড
-          const response = await fetch(DB_URL);
-          if (!response.ok) throw new Error(`ডাউনলোড ফেইল করেছে। স্ট্যাটাস: ${response.status}`);
+          // ২. প্লাগআপলোড দিয়ে ডাউনলোড শুরু করা
+          await download(
+            DB_URL,
+            'tafsir.db',
+            (progress, total) => {
+              // প্রোগ্রেস আপডেট (MB এবং %)
+              if (total > 0) {
+                const percent = Math.round((progress / total) * 100);
+                const mbDownloaded = (progress / (1024 * 1024)).toFixed(2);
+                const mbTotal = (total / (1024 * 1024)).toFixed(2);
+                setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
+              } else {
+                const mbDownloaded = (progress / (1024 * 1024)).toFixed(2);
+                setLoadingMsg(`ডাউনলোড হচ্ছে: ${mbDownloaded} MB`);
+              }
+            },
+            { baseDir: BaseDirectory.AppData } // ডাউনলোড কোথায় সেভ হবে
+          );
           
-          const buffer = await response.arrayBuffer();
-          
-          // ৩. ফোনের AppData-তে সেভ করা
-          await writeFile('tafsir.db', new Uint8Array(buffer), { baseDir: BaseDirectory.AppData });
-          setLoadingMsg("ডেটাবেস ডাউনলোড সম্পন্ন! লোড হচ্ছে...");
+          setLoadingMsg("ডাউনলোড সম্পন্ন! লোড হচ্ছে...");
         } else {
           setLoadingMsg("ডেটাবেস লোড হচ্ছে...");
         }
 
-        // ৪. SQLite ডেটাবেস ওপেন করা
+        // ৩. SQLite ডেটাবেস ওপেন করা
         const database = await Database.load('sqlite:tafsir.db');
         setDb(database);
         
-        // ৫. ডেটা লোড করা
+        // ৪. ডেটা লোড করা
         const books = await database.select('SELECT * FROM books');
         setBooksData(books);
 
@@ -68,6 +79,11 @@ export default function App() {
       } catch (error) {
         console.error("DB Error:", error);
         setErrorMsg(error.toString() || "Unknown Database Error");
+        
+        // ডাউনলোড ব্যর্থ হলে ভাঙা ফাইল ডিলিট করে দেব যাতে পরেরবার নতুন করে ডাউনলোড হয়
+        try {
+          await remove('tafsir.db', { baseDir: BaseDirectory.AppData });
+        } catch (e) {}
       } finally {
         setLoading(false);
       }
@@ -102,7 +118,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="d-flex justify-content-center align-items-center vh-100 bg-dark text-white text-center p-4">
+      <div className="d-flex flex-column justify-content-center align-items-center vh-100 bg-dark text-white text-center p-4">
         <h4>{loadingMsg}</h4>
       </div>
     );
