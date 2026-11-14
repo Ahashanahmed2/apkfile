@@ -21,7 +21,6 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_upload::init())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_opener::init())
         // ২. আপডেট চেক করার কমান্ড রেজিস্টার করা
         .invoke_handler(tauri::generate_handler![get_file_size])
         // ৩. ব্যাক বাটন হ্যান্ডেল করা (১০)
