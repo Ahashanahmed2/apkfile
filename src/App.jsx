@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl } from 'react-bootstrap';
 import Database from '@tauri-apps/plugin-sql';
-import { exists, BaseDirectory, remove, stat } from '@tauri-apps/plugin-fs'; // ✅ stat ইমপোর্ট
+import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
 import { download } from '@tauri-apps/plugin-upload';
 import { appDataDir, join } from '@tauri-apps/api/path';
 import { fetch } from '@tauri-apps/plugin-http';
+import { invoke } from '@tauri-apps/api/core'; // ✅ Rust কমান্ড কল করার জন্য
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 
@@ -45,7 +46,7 @@ export default function App() {
           const appData = await appDataDir();
           const dbPath = await join(appData, 'tafsir.db');
           
-          // সার্ভার থেকে মোট সাইজ বের করা
+          // ✅ ১. সার্ভার থেকে মোট সাইজ বের করা (HEAD রিকোয়েস্ট)
           let totalFileSize = 0;
           try {
             const headResponse = await fetch(DB_URL, { method: 'HEAD' });
@@ -58,31 +59,33 @@ export default function App() {
           }
 
           if (totalFileSize === 0) {
-             totalFileSize = 133 * 1024 * 1024;
+             totalFileSize = 133 * 1024 * 1024; // fallback
           }
 
           setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
 
-          // ✅ ফাইল সাইজ চেক করার জন্য ইন্টারভাল সেট করা
+          // ✅ ২. Rust থেকে ফাইল সাইজ চেক করার ইন্টারভাল
           const intervalId = setInterval(async () => {
             try {
-              // ডাউনলোড হওয়া ফাইলের বর্তমান সাইজ চেক করা
-              const fileInfo = await stat(dbPath);
-              if (fileInfo && fileInfo.size > 0) {
-                const downloaded = fileInfo.size;
+              const downloaded = await invoke('get_file_size', { path: dbPath });
+              
+              if (downloaded > 0) {
                 const percent = Math.min(Math.round((downloaded / totalFileSize) * 100), 100);
                 const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
                 const mbTotal = (totalFileSize / (1024 * 1024)).toFixed(2);
                 
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
                 setDebugLog(`Downloaded: ${mbDownloaded} MB / ${mbTotal} MB`);
+              } else {
+                setDebugLog(`Waiting for file to start...`);
               }
             } catch (e) {
-              // ফাইল এখনো তৈরি না হলে কিছু করবে না
+              setDebugLog(`Error: ${e}`);
             }
-          }, 1000); // প্রতি ১ সেকেন্ডে চেক করবে
+          }, 1000);
 
           try {
+            // ✅ ৩. ডাউনলোড শুরু
             await download(DB_URL, dbPath);
           } finally {
             clearInterval(intervalId); // ডাউনলোড শেষ হলে ইন্টারভাল বন্ধ
@@ -93,6 +96,7 @@ export default function App() {
           setLoadingMsg("ডেটাবেস লোড হচ্ছে...");
         }
 
+        // ৪. SQLite ডেটাবেস ওপেন করা
         const database = await Database.load('sqlite:tafsir.db');
         setDb(database);
         
