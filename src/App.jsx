@@ -50,15 +50,15 @@ export default function App() {
           await download(
             DB_URL,
             dbPath,
-            (progress, progressTotal, total) => {
-              // প্রোগ্রেস লজিক (progressTotal হলো মোট ডাউনলোড হওয়া বাইট)
+            (progress, total) => {
+              // ✅ এইখানে শুধু ২টি প্যারামিটার আছে: progress (মোট ডাউনলোড হওয়া) এবং total (মোট সাইজ)
               if (total > 0) {
-                const percent = Math.round((progressTotal / total) * 100);
-                const mbDownloaded = (progressTotal / (1024 * 1024)).toFixed(2);
+                const percent = Math.round((progress / total) * 100);
+                const mbDownloaded = (progress / (1024 * 1024)).toFixed(2);
                 const mbTotal = (total / (1024 * 1024)).toFixed(2);
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
               } else {
-                const mbDownloaded = (progressTotal / (1024 * 1024)).toFixed(2);
+                const mbDownloaded = (if / (1024 * 1024)).toFixed(2);
                 setLoadingMsg(`ডাউনলোড হচ্ছে: ${mbDownloaded} MB`);
               }
             }
@@ -77,7 +77,7 @@ export default function App() {
         const books = await database.select('SELECT * FROM books');
         setBooksData(books);
 
-        const initialQurans = await database.select('SELECT * FROM qurans LIMIT 50');
+        const it = await database.select('SELECT * FROM qurans LIMIT 50');
         setQuransData(initialQurans);
 
       } catch (error) {
