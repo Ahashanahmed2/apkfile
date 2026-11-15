@@ -3,14 +3,16 @@ import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, Form
 import Database from '@tauri-apps/plugin-sql';
 import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
 import { download } from '@tauri-apps/plugin-upload';
-import { appDataDir, join } from '@tauri-apps/api/path';
+import { appDataDir, appCacheDir, join } from '@tauri-apps/api/path';
 import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
+import { install, canInstall, requestInstallPermission } from 'tauri-plugin-android-installer-api';
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 const VERSION_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/version.json";
 const APP_DB_VERSION = "1.0";
+const CURRENT_APP_VERSION = "1.0.0"; // ✅ আপনার অ্যাপের বর্তমান ভার্সন
 
 const highlightText = (text, query) => {
   if (!text) return "";
@@ -56,6 +58,11 @@ export default function App() {
   const [updateAvailable, setUpdateAvailable] = useState(null);
   const [updateNotes, setUpdateNotes] = useState("");
 
+  // ✅ নতুন স্টেট: অ্যাপ আপডেটের জন্য
+  const [appUpdateAvailable, setAppUpdateAvailable] = useState(null);
+  const [appUpdateNotes, setAppUpdateNotes] = useState("");
+  const [appApkUrl, setAppApkUrl] = useState("");
+
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 3000);
     return () => clearTimeout(timer);
@@ -81,6 +88,16 @@ export default function App() {
           if (versionRes.ok) newVersionData = await versionRes.json();
         } catch (e) {}
 
+        // ✅ অ্যাপ আপডেট চেক
+        if (newVersionData && newVersionData.app_version && newVersionData.app_version !== CURRENT_APP_VERSION) {
+          setAppUpdateNotes(newVersionData.update_notes || "নতুন অ্যাপ আপডেট পাওয়া গেছে।");
+          setAppUpdateAvailable(newVersionData.app_version);
+          setAppApkUrl(newVersionData.apk_url || "");
+          setLoading(false);
+          return;
+        }
+
+        // ✅ ডেটাবেস আপডেট চেক
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         const storedDbVersion = localStorage.getItem('dbVersion');
 
@@ -127,7 +144,6 @@ export default function App() {
         const books = await database.select('SELECT * FROM books');
         setBooksData(books);
         
-        // ✅ ড্রপডাউনে দেখানোর জন্য ডেটাবেস থেকে সব ইউনিক সূরা লোড করা
         const surahs = await database.select('SELECT DISTINCT name FROM qurans WHERE name IS NOT NULL AND name != "" ORDER BY name ASC');
         setUniqueSurahs(surahs.map(s => s.name));
 
@@ -148,26 +164,22 @@ export default function App() {
       let query = 'SELECT * FROM qurans WHERE 1=1';
       const params = [];
       
-      // বই ফিল্টার
       if (selectedBook) { 
         query += ' AND book = ?'; 
         params.push(selectedBook); 
       }
       
-      // ✅ সূরা ফিল্টার: নামের আংশিক মিল থাকলেও কাজ করবে (LIKE)
       if (selectedSurah !== "সব সূরা") { 
         query += ' AND name LIKE ?'; 
         params.push(`%${selectedSurah}%`); 
       }
       
-      // সার্চ কুয়েরি
       if (searchQuery.trim() !== '') {
         query += ' AND (verses LIKE ? OR summary LIKE ? OR ancillary_issue LIKE ?)';
         const p = `%${searchQuery}%`; 
         params.push(p, p, p);
       }
       
-      // ✅ ডেটা লোড লিমিট বাড়ানো হলো
       query += ' LIMIT 1000';
       
       try {
@@ -196,6 +208,35 @@ export default function App() {
     const updated = savedItems.filter(i => i.id !== id);
     setSavedItems(updated);
     localStorage.setItem('savedTafsir', JSON.stringify(updated));
+  };
+
+  // ✅ অ্যাপ আপডেট ইনস্টল করার ফাংশন
+  const handleAppUpdate = async () => {
+    if (!appApkUrl) return alert("APK ডাউনলোড লিংক পাওয়া যায়নি!");
+    
+    setLoading(true);
+    setLoadingMsg("নতুন অ্যাপ ডাউনলোড হচ্ছে...");
+    
+    try {
+      const cachePath = await join(await appCacheDir(), "update.apk");
+      
+      await download(appApkUrl, cachePath);
+      
+      if (!(await canInstall())) {
+        await requestInstallPermission();
+        if (!(await canInstall())) {
+          alert("ইনস্টল করার জন্য 'Unknown Sources' পারমিশন প্রয়োজন!");
+          setLoading(false);
+          return;
+        }
+      }
+      
+      setLoadingMsg("ইনস্টলার চালু হচ্ছে...");
+      await install(cachePath);
+    } catch (e) {
+      alert("আপডেট ব্যর্থ: " + e);
+      setLoading(false);
+    }
   };
 
   const handleUpdateDb = async () => {
@@ -247,10 +288,25 @@ export default function App() {
     );
   }
 
+  // ✅ অ্যাপ আপডেট স্ক্রিন (ডেটাবেস আপডেটের আগে দেখাবে)
+  if (appUpdateAvailable && !loading) {
+    return (
+      <div className="d-flex flex-column justify-content-center align-items-center vh-100 p-4 text-center" style={{ backgroundColor: '#1a1a1a', color: 'white' }}>
+        <h2 className="text-warning mb-3">🚀 নতুন অ্যাপ আপডেট!</h2>
+        <div className="bg-secondary p-3 rounded mb-4" style={{ maxWidth: '400px', width: '100%' }}>
+          <p>নতুন ভার্সন: <strong>v{appUpdateAvailable}</strong></p>
+          <p>{appUpdateNotes}</p>
+        </div>
+        <Button variant="success" size="lg" onClick={handleAppUpdate}>এখনই আপডেট করুন</Button>
+        <Button variant="outline-light" className="mt-3" onClick={() => setAppUpdateAvailable(null)}>পরে করব</Button>
+      </div>
+    );
+  }
+
   if (updateAvailable && !loading) {
     return (
       <div className="d-flex flex-column justify-content-center align-items-center vh-100 p-4 text-center" style={{ backgroundColor: '#1a1a1a', color: 'white' }}>
-        <h2 className="text-warning mb-3">🎉 নতুন আপডেট পাওয়া গেছে!</h2>
+        <h2 className="text-warning mb-3">🎉 নতুন ডেটাবেস আপডেট!</h2>
         <div className="bg-secondary p-3 rounded mb-4" style={{ maxWidth: '400px', width: '100%' }}>
           <p>{updateNotes}</p>
         </div>
@@ -332,7 +388,6 @@ export default function App() {
                     <span>{item.name} ({item.number})</span>
                   </Card.Header>
                   <Card.Body>
-                    {/* ✅ আয়াতের বক্স */}
                     <div 
                       className={`mb-3 rounded ${darkMode ? 'text-light' : 'text-dark'}`} 
                       style={{ 
