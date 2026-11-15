@@ -78,7 +78,6 @@ export default function App() {
     localStorage.setItem('theme', darkMode ? 'dark' : 'light');
     localStorage.setItem('fontSize', fontSize.toString());
     document.body.style.backgroundColor = darkMode ? '#1a1a1a' : '#f8f9fa';
-    // ✅ পুরো বডির প্যাডিং ও মার্জিন ০ করা হলো
     document.body.style.margin = '0';
     document.body.style.padding = '0';
     document.body.style.overflowX = 'hidden';
@@ -346,9 +345,12 @@ export default function App() {
         .btn-close {
           filter: invert(1) grayscale(100%) brightness(200%) !important;
         }
-        /* ✅ বাড়তি স্ক্রল ও প্যাডিং বন্ধ করতে */
-        body, html { margin: 0; padding: 0; overflow-x: hidden; }
-        .container-fluid { padding-left: 0 !important; padding-right: 0 !important; }
+        /* ✅ পুরো বডি এবং কন্টেইনারের বাড়তি ফাঁকা জায়গা বন্ধ করা হলো */
+        body, html, #root { margin: 0 !important; padding: 0 !important; overflow-x: hidden; max-width: 100%; width: 100%; }
+        
+        /* ✅ কার্ডের ডিফল্ট বর্ডার রেডিয়াস এবং বডির প্যাডিং জোরপূর্বক 0 করা হলো */
+        .card { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+        .card-body { padding-left: 0 !important; padding-right: 0 !important; }
       `}</style>
 
       <Navbar sticky="top" className="bg-warning px-2 shadow-sm" style={{ margin: 0 }}>
@@ -386,33 +388,33 @@ export default function App() {
         </Container>
       </Navbar>
 
-      {/* ✅ এখানে padding 0 এবং margin 0 করা হয়েছে */}
-      <Container fluid className="mt-2 pb-4" style={{ padding: '0px' }}>
+      <Container fluid style={{ padding: '0px', margin: '0px', maxWidth: '100%' }}>
         <Row style={{ margin: '0px' }}>
           <Col style={{ padding: '0px' }}>
             {quransData.length === 0 ? (
               <div className="text-center mt-5 py-4"><h5>কোনো ফলাফল পাওয়া যায়নি!</h5></div>
             ) : (
               quransData.map((item, index) => (
-                /* ✅ Card এর borderRadius এবং margin 0 করা হয়েছে */
                 <Card 
                   key={index} 
                   className={`mb-1 shadow-sm ${cardBg}`} 
                   border="secondary"
                   style={{ borderRadius: '0px', margin: '0px', width: '100%' }}
                 >
-                  <Card.Header className="d-flex justify-content-between align-items-center bg-dark text-white">
+                  <Card.Header className="d-flex justify-content-between align-items-center bg-dark text-white" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
                     <span>{item.book}</span>
                     <span>{item.name} ({item.number})</span>
                   </Card.Header>
-                  <Card.Body>
+                  
+                  {/* ✅ Card.Body এর ভেতরের padding 0 করে দেওয়া হলো, এবং ভেতরের ডিভে 10px padding দেওয়া হলো */}
+                  <Card.Body className="p-0"> 
                     <div 
-                      className={`mb-3 rounded ${darkMode ? 'text-light' : 'text-dark'}`} 
+                      className={`mb-0 ${darkMode ? 'text-light' : 'text-dark'}`} 
                       style={{ 
                         whiteSpace: "pre-wrap", 
                         fontSize: `${fontSize}px`, 
                         backgroundColor: darkMode ? '#333' : '#e9ecef',
-                        padding: '15px' 
+                        padding: '10px' // টেক্সট এরিয়ার ভেতরের প্যাডিং
                       }}
                     >
                       {highlightText(item.verses, searchQuery)}
@@ -420,38 +422,39 @@ export default function App() {
                         [{item.name} - {item.number}:{item.versesNumber}]
                       </span>
                     </div>
-                    <div className="d-flex gap-2 mb-3">
-                      <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.verses)}>কপি</Button>
-                      <Button variant="outline-warning" size="sm" onClick={() => handleSave(item, 'verses', item.verses)}>সেভ</Button>
+                    
+                    <div className="d-flex gap-2 p-2 pb-0">
+                      <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.verses)}>কপি</Button>
+                      <Button variant="outline-warning" size="sm" className="flex-fill" onClick={() => handleSave(item, 'verses', item.verses)}>সেভ</Button>
                     </div>
 
                     <Tab.Container id={`tabs-${index}`} defaultActiveKey="first">
                       
-                      <Nav variant="pills" className="flex-row mb-3 gap-2">
-                        <Nav.Item>
-                          <Nav.Link eventKey="first" className={darkMode ? "text-light border border-secondary" : "text-dark border"}>
+                      <Nav variant="pills" className="flex-row m-2 gap-2">
+                        <Nav.Item className="flex-fill text-center">
+                          <Nav.Link eventKey="first" className={darkMode ? "text-light border border-secondary py-1" : "text-dark border py-1"}>
                             সারসংক্ষেপ
                           </Nav.Link>
                         </Nav.Item>
-                        <Nav.Item>
-                          <Nav.Link eventKey="second" className={darkMode ? "text-light border border-secondary" : "text-dark border"}>
+                        <Nav.Item className="flex-fill text-center">
+                          <Nav.Link eventKey="second" className={darkMode ? "text-light border border-secondary py-1" : "text-dark border py-1"}>
                             আনুষঙ্গিক বিষয়
                           </Nav.Link>
                         </Nav.Item>
                       </Nav>
 
-                      <Tab.Content>
+                      <Tab.Content className="p-2 pt-0">
                         <Tab.Pane eventKey="first">
                           <div className="d-flex justify-content-end mb-2 gap-1">
-                            <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.summary || "কোন তথ্য নেই")}>কপি</Button>
-                            <Button variant="outline-secondary" size="sm" onClick={() => handleSave(item, 'summary', item.summary || "কোন তথ্য নেই")}>সেভ</Button>
+                            <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.summary || "কোন তথ্য নেই")}>কপি</Button>
+                            <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleSave(item, 'summary', item.summary || "কোন তথ্য নেই")}>সেভ</Button>
                           </div>
                           <div style={{ 
                             whiteSpace: "pre-wrap", 
                             fontSize: `${fontSize - 2}px`, 
                             color: darkMode ? '#fff' : '#000',
                             backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
-                            padding: '15px',
+                            padding: '10px',
                             borderRadius: '8px'
                           }}>
                             {highlightText(item.summary || "কোন তথ্য নেই", searchQuery)}
@@ -460,15 +463,15 @@ export default function App() {
                         
                         <Tab.Pane eventKey="second">
                           <div className="d-flex justify-content-end mb-2 gap-1">
-                            <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.ancillary_issue || "কোন তথ্য নেই")}>কপি</Button>
-                            <Button variant="outline-secondary" size="sm" onClick={() => handleSave(item, 'ancillary', item.ancillary_issue || "কোন তথ্য নেই")}>সেভ</Button>
+                            <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.ancillary_issue || "কোন তথ্য নেই")}>কপি</Button>
+                            <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleSave(item, 'ancillary', item.ancillary_issue || "কোন তথ্য নেই")}>সেভ</Button>
                           </div>
                           <div style={{ 
                             whiteSpace: "pre-wrap", 
                             fontSize: `${fontSize - 2}px`, 
                             color: darkMode ? '#fff' : '#000',
                             backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
-                            padding: '15px',
+                            padding: '10px',
                             borderRadius: '8px'
                           }}>
                             {highlightText(item.ancillary_issue || "কোন তথ্য নেই", searchQuery)}
