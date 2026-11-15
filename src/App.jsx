@@ -2,15 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl, Modal, Button, Offcanvas, Nav } from 'react-bootstrap';
 import Database from '@tauri-apps/plugin-sql';
 import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
+import { download } from '@tauri-apps/plugin-upload'; // ✅ অফিসিয়াল প্লাগইন ফিরিয়ে আনা হলো
 import { appDataDir, appCacheDir, join } from '@tauri-apps/api/path';
 import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { install, canInstall, requestInstallPermission } from 'tauri-plugin-android-installer-api';
 import { getVersion } from '@tauri-apps/api/app';
-
-// ✅ silvermine ডাউনলোড প্লাগইন (GitHub থেকে ইনস্টল করা)
-import { get as getDownload, hasAction, DownloadAction } from 'tauri-plugin-download';
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 const VERSION_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/version.json";
@@ -82,31 +80,6 @@ export default function App() {
     document.body.style.backgroundColor = darkMode ? '#1a1a1a' : '#f8f9fa';
   }, [darkMode, fontSize]);
 
-  // ✅ silvermine প্লাগইন দিয়ে ডাউনলোড শুরু ও শেষ হওয়া পর্যন্ত অপেক্ষা
-  const startDownloadWithPlugin = async (url, path) => {
-    const download = await getDownload(url, path);
-    
-    if (hasAction(download, DownloadAction.Start)) {
-      const response = await download.start();
-      console.log("ডাউনলোড শুরু:", response.download.status);
-
-      // ডাউনলোড শেষ হওয়া পর্যন্ত অপেক্ষা (ফাইল তৈরি হওয়া চেক)
-      while (true) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        try {
-          const fileExists = await exists(path);
-          if (fileExists) break;
-        } catch (e) {
-          // ফাইল এখনো তৈরি হয়নি
-        }
-      }
-      return true;
-    } else {
-      console.log("ডাউনলোড ইতিমধ্যে প্রস্তুত বা চলমান।");
-      return true;
-    }
-  };
-
   useEffect(() => {
     async function initDb() {
       try {
@@ -118,29 +91,54 @@ export default function App() {
 
         const currentVersion = await getVersion();
 
+        // ১. অ্যাপ আপডেট চেক
         if (newVersionData && newVersionData.app_version && newVersionData.app_version !== currentVersion) {
-          setAppUpdateNotes(newVersionData.update_notes || "নতুন অ্যাপ আপডেট পাওয়া গেছে।");
+          setAppUpdateNotes(newVersionData.update_notes || "নতুন অ্যাপ আপডেট পাওয়া গেছে।");
           setAppUpdateAvailable(newVersionData.app_version);
           setAppApkUrl(newVersionData.apk_url || "");
           setShowAppUpdateModal(true);
         }
 
+        // ২. ডেটাবেস আপডেট চেক
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         const storedDbVersion = localStorage.getItem('dbVersion');
 
         if (dbExists && newVersionData && newVersionData.version !== storedDbVersion) {
-          setUpdateNotes(newVersionData.update_notes || "নতুন ডেটাবেস আপডেট পাওয়া গেছে।");
+          setUpdateNotes(newVersionData.update_notes || "নতুন ডেটাবেস আপডেট পাওয়া গেছে।");
           setUpdateAvailable(newVersionData.version);
           setLoading(false);
           return; 
         }
 
         if (!dbExists) {
-          setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে... (স্ক্রিন বন্ধ করলেও ডাউনলোড চলবে)");
+          setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
           const appData = await appDataDir();
           const dbPath = await join(appData, 'tafsir.db');
           
-          await startDownloadWithPlugin(DB_URL, dbPath);
+          let totalFileSize = 133 * 1024 * 1024;
+          try {
+            const headResponse = await fetch(DB_URL, { method: 'HEAD' });
+            const cl = headResponse.headers.get('content-length');
+            if (cl) totalFileSize = parseInt(cl, 10);
+          } catch (err) {}
+
+          const intervalId = setInterval(async () => {
+            try {
+              const downloaded = await invoke('get_file_size', { path: dbPath });
+              if (downloaded > 0) {
+                const percent = Math.min(Math.round((downloaded / totalFileSize) * 100), 100);
+                const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
+                const mbTotal = (totalFileSize / (1024 * 1024)).toFixed(2);
+                setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
+              }
+            } catch (e) {}
+          }, 1000);
+
+          try { 
+            await download(DB_URL, dbPath); 
+          } finally { 
+            clearInterval(intervalId); 
+          }
           
           localStorage.setItem('dbVersion', newVersionData ? newVersionData.version : APP_DB_VERSION);
         } else {
@@ -158,12 +156,12 @@ export default function App() {
         const initialQurans = await database.select('SELECT * FROM qurans LIMIT 50');
         
         if (initialQurans.length === 0) {
-          throw new Error("ডেটাবেস লোড হয়েছে কিন্তু কোনো ডেটা পাওয়া যায়নি। ফাইলটি ড্যামেজ হতে পারে।");
+          throw new Error("ডেটাবেস লোড হয়েছে কিন্তু কোনো ডেটা পাওয়া যায়নি। ফাইলটি ড্যামেজ হতে পারে।");
         }
         
         setQuransData(initialQurans);
       } catch (error) {
-        setErrorMsg("ডেটাবেস লোড করা সম্ভব হয়নি। ইন্টারনেট চেক করে অ্যাপ রিস্টার্ট করুন।\n\nবিস্তারিত: " + error.toString());
+        setErrorMsg("ডেটাবেস লোড করা সম্ভব হয়নি। ইন্টারনেট চেক করে অ্যাপ রিস্টার্ট করুন।\n\nবিস্তারিত: " + error.toString());
       } finally {
         setLoading(false);
       }
@@ -204,7 +202,7 @@ export default function App() {
   }, [selectedBook, selectedSurah, searchQuery, db]);
 
   const handleCopy = async (text) => {
-    try { await writeText(text); alert("কপি হয়েছে!"); } catch (e) { alert("কপি ব্যর্থ!"); }
+    try { await writeText(text); alert("কপি হয়েছে!"); } catch (e) { alert("কপি ব্যর্থ!"); }
   };
 
   const handleSave = (item, type, content) => {
@@ -214,7 +212,7 @@ export default function App() {
     const updated = [...savedItems, newItem];
     setSavedItems(updated);
     localStorage.setItem('savedTafsir', JSON.stringify(updated));
-    alert("সেভ হয়েছে!");
+    alert("সেভ হয়েছে!");
   };
 
   const handleDeleteSaved = (id) => {
@@ -224,7 +222,7 @@ export default function App() {
   };
 
   const handleAppUpdate = async () => {
-    if (!appApkUrl) return alert("APK ডাউনলোড লিংক পাওয়া যায়নি!");
+    if (!appApkUrl) return alert("APK ডাউনলোড লিংক পাওয়া যায়নি!");
     
     setLoading(true);
     setShowAppUpdateModal(false);
@@ -232,13 +230,12 @@ export default function App() {
     
     try {
       const cachePath = await join(await appCacheDir(), "update.apk");
-      
-      await startDownloadWithPlugin(appApkUrl, cachePath);
+      await download(appApkUrl, cachePath);
       
       if (!(await canInstall())) {
         await requestInstallPermission();
         if (!(await canInstall())) {
-          alert("ইনস্টল করার জন্য 'Unknown Sources' পারমিশন প্রয়োজন!");
+          alert("ইনস্টল করার জন্য 'Unknown Sources' পারমিশন প্রয়োজন!");
           setLoading(false);
           return;
         }
@@ -261,10 +258,33 @@ export default function App() {
       const dbPath = await join(appData, 'tafsir.db');
       await remove('tafsir.db', { baseDir: BaseDirectory.AppData });
 
-      await startDownloadWithPlugin(DB_URL, dbPath);
+      let totalFileSize = 133 * 1024 * 1024;
+      try {
+        const headResponse = await fetch(DB_URL, { method: 'HEAD' });
+        const cl = headResponse.headers.get('content-length');
+        if (cl) totalFileSize = parseInt(cl, 10);
+      } catch (err) {}
+
+      const intervalId = setInterval(async () => {
+        try {
+          const downloaded = await invoke('get_file_size', { path: dbPath });
+          if (downloaded > 0) {
+            const percent = Math.min(Math.round((downloaded / totalFileSize) * 100), 100);
+            const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
+            const mbTotal = (totalFileSize / (1024 * 1024)).toFixed(2);
+            setLoadingMsg(`নতুন ডেটাবেস ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
+          }
+        } catch (e) {}
+      }, 1000);
+
+      try { 
+        await download(DB_URL, dbPath); 
+      } finally { 
+        clearInterval(intervalId); 
+      }
       
       localStorage.setItem('dbVersion', updateAvailable);
-      alert("আপডেট সফল হয়েছে! অ্যাপ রিস্টার্ট হবে।");
+      alert("আপডেট সফল হয়েছে! অ্যাপ রিস্টার্ট হবে।");
       window.location.reload();
     } catch (e) {
       alert("আপডেট ব্যর্থ: " + e);
@@ -300,7 +320,6 @@ export default function App() {
       <div className="d-flex flex-column justify-content-center align-items-center vh-100 bg-dark text-white text-center p-4">
         <div className="spinner-border text-warning mb-3" role="status"></div>
         <h4>{loadingMsg}</h4>
-        <p className="mt-2 text-muted small">দয়া করে অপেক্ষা করুন, ডাউনলোড শেষ না হলে অ্যাপ চালু হবে না।</p>
       </div>
     );
   }
@@ -366,7 +385,7 @@ export default function App() {
         <Row className="m-0">
           <Col className="p-0">
             {quransData.length === 0 ? (
-              <div className="text-center mt-5 py-4"><h5>কোনো ফলাফল পাওয়া যায়নি!</h5></div>
+              <div className="text-center mt-5 py-4"><h5>কোনো ফলাফল পাওয়া যায়নি!</h5></div>
             ) : (
               quransData.map((item, index) => (
                 <Card key={index} className={`mb-1 shadow-sm ${cardBg}`} border="secondary">
@@ -404,7 +423,7 @@ export default function App() {
                         </Nav.Item>
                         <Nav.Item>
                           <Nav.Link eventKey="second" className={darkMode ? "text-light border border-secondary" : "text-dark border"}>
-                            আনুষঙ্গিক বিষয়
+                            আনুষঙ্গিক বিষয়
                           </Nav.Link>
                         </Nav.Item>
                       </Nav>
@@ -492,7 +511,7 @@ export default function App() {
           </div>
           
           <h5>ডেটাবেস</h5>
-          <p className="small">নতুন ডেটাবেস পেলে অ্যাপ চালু হওয়ার সময় আপডেটের নোটিশ আসবে।</p>
+          <p className="small">নতুন ডেটাবেস পেলে অ্যাপ চালু হওয়ার সময় আপডেটের নোটিশ আসবে।</p>
         </Offcanvas.Body>
       </Offcanvas>
 
@@ -501,7 +520,7 @@ export default function App() {
           <Modal.Title>🔖 সেভ করা তালিকা</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <FormControl type="search" placeholder="সেভ করা তালিকায় সার্চ করুন..." className="mb-3" value={savedSearchQuery} onChange={(e) => setSavedSearchQuery(e.target.value)} />
+          <FormControl type="search" placeholder="সেভ করা তালিকায় সার্চ করুন..." className="mb-3" value={savedSearchQuery} onChange={(e) => setSavedSearchQuery(e.target.value)} />
           {savedItems.length === 0 ? (
             <p className="text-center">কোনো তথ্য সেভ করা নেই!</p>
           ) : (
