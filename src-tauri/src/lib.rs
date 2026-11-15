@@ -16,6 +16,7 @@ fn get_file_size(path: String) -> u64 {
 pub fn run() {
     tauri::Builder::default()
         // ১. প্লাগইনসমূহ রেজিস্টার করা
+        .plugin(tauri_plugin_download::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
