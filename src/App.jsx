@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl, Modal, Button, Offcanvas, Nav } from 'react-bootstrap';
 import Database from '@tauri-apps/plugin-sql';
 import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
-import { download } from '@tauri-apps/plugin-upload'; // ✅ অফিসিয়াল প্লাগইন ফিরিয়ে আনা হলো
+import { download } from '@tauri-apps/plugin-upload'; 
 import { appDataDir, appCacheDir, join } from '@tauri-apps/api/path';
 import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
@@ -78,6 +78,10 @@ export default function App() {
     localStorage.setItem('theme', darkMode ? 'dark' : 'light');
     localStorage.setItem('fontSize', fontSize.toString());
     document.body.style.backgroundColor = darkMode ? '#1a1a1a' : '#f8f9fa';
+    // ✅ পুরো বডির প্যাডিং ও মার্জিন ০ করা হলো
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
+    document.body.style.overflowX = 'hidden';
   }, [darkMode, fontSize]);
 
   useEffect(() => {
@@ -91,7 +95,6 @@ export default function App() {
 
         const currentVersion = await getVersion();
 
-        // ১. অ্যাপ আপডেট চেক
         if (newVersionData && newVersionData.app_version && newVersionData.app_version !== currentVersion) {
           setAppUpdateNotes(newVersionData.update_notes || "নতুন অ্যাপ আপডেট পাওয়া গেছে।");
           setAppUpdateAvailable(newVersionData.app_version);
@@ -99,7 +102,6 @@ export default function App() {
           setShowAppUpdateModal(true);
         }
 
-        // ২. ডেটাবেস আপডেট চেক
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         const storedDbVersion = localStorage.getItem('dbVersion');
 
@@ -338,16 +340,19 @@ export default function App() {
   const cardBg = darkMode ? "bg-secondary text-white" : "bg-light text-dark";
 
   return (
-    <div className={themeClass} style={{ minHeight: '100vh', touchAction: 'pan-x pan-y pinch-zoom' }}>
+    <div className={themeClass} style={{ minHeight: '100vh', touchAction: 'pan-x pan-y pinch-zoom', margin: 0, padding: 0 }}>
       
       <style>{`
         .btn-close {
           filter: invert(1) grayscale(100%) brightness(200%) !important;
         }
+        /* ✅ বাড়তি স্ক্রল ও প্যাডিং বন্ধ করতে */
+        body, html { margin: 0; padding: 0; overflow-x: hidden; }
+        .container-fluid { padding-left: 0 !important; padding-right: 0 !important; }
       `}</style>
 
-      <Navbar sticky="top" className="bg-warning px-2 shadow-sm">
-        <Container fluid>
+      <Navbar sticky="top" className="bg-warning px-2 shadow-sm" style={{ margin: 0 }}>
+        <Container fluid style={{ padding: '0 8px' }}>
           <Dropdown>
             <Dropdown.Toggle variant="success" id="book-dropdown" size="sm">
               {selectedBook ? selectedBook : "সব বই"}
@@ -381,14 +386,21 @@ export default function App() {
         </Container>
       </Navbar>
 
-      <Container fluid className="mt-2 pb-4 p-0">
-        <Row className="m-0">
-          <Col className="p-0">
+      {/* ✅ এখানে padding 0 এবং margin 0 করা হয়েছে */}
+      <Container fluid className="mt-2 pb-4" style={{ padding: '0px' }}>
+        <Row style={{ margin: '0px' }}>
+          <Col style={{ padding: '0px' }}>
             {quransData.length === 0 ? (
               <div className="text-center mt-5 py-4"><h5>কোনো ফলাফল পাওয়া যায়নি!</h5></div>
             ) : (
               quransData.map((item, index) => (
-                <Card key={index} className={`mb-1 shadow-sm ${cardBg}`} border="secondary">
+                /* ✅ Card এর borderRadius এবং margin 0 করা হয়েছে */
+                <Card 
+                  key={index} 
+                  className={`mb-1 shadow-sm ${cardBg}`} 
+                  border="secondary"
+                  style={{ borderRadius: '0px', margin: '0px', width: '100%' }}
+                >
                   <Card.Header className="d-flex justify-content-between align-items-center bg-dark text-white">
                     <span>{item.book}</span>
                     <span>{item.name} ({item.number})</span>
