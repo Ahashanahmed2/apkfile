@@ -8,7 +8,7 @@ import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { install, canInstall, requestInstallPermission } from 'tauri-plugin-android-installer-api';
-import { getVersion } from '@tauri-apps/api/app'; // ✅ অ্যাপের ভার্সন ডাইনামিক করার জন্য ইমপোর্ট
+import { getVersion } from '@tauri-apps/api/app';
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 const VERSION_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/version.json";
@@ -55,12 +55,15 @@ export default function App() {
   const [introContent, setIntroContent] = useState({ title: "", body: "" });
 
   const [showSplash, setShowSplash] = useState(true);
-  const [updateAvailable, setUpdateAvailable] = useState(null);
-  const [updateNotes, setUpdateNotes] = useState("");
-
+  
+  // আপডেটের স্টেট পরিবর্তন
+  const [showAppUpdateModal, setShowAppUpdateModal] = useState(false);
   const [appUpdateAvailable, setAppUpdateAvailable] = useState(null);
   const [appUpdateNotes, setAppUpdateNotes] = useState("");
   const [appApkUrl, setAppApkUrl] = useState("");
+
+  const [updateAvailable, setUpdateAvailable] = useState(null);
+  const [updateNotes, setUpdateNotes] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => setShowSplash(false), 3000);
@@ -87,26 +90,24 @@ export default function App() {
           if (versionRes.ok) newVersionData = await versionRes.json();
         } catch (e) {}
 
-        // ✅ ডাইনামিকভাবে অ্যাপের বর্তমান ভার্সন নেওয়া
         const currentVersion = await getVersion();
-        console.log("Current App Version:", currentVersion);
 
-        // ✅ ১. অ্যাপ আপডেট চেক
+        // ১. অ্যাপ আপডেট চেক (এখানে return সরিয়ে দেওয়া হয়েছে, যাতে অ্যাপ আটকে না যায়)
         if (newVersionData && newVersionData.app_version && newVersionData.app_version !== currentVersion) {
           setAppUpdateNotes(newVersionData.update_notes || "নতুন অ্যাপ আপডেট পাওয়া গেছে।");
           setAppUpdateAvailable(newVersionData.app_version);
           setAppApkUrl(newVersionData.apk_url || "");
-          setLoading(false);
-          return; // অ্যাপ আপডেট না হওয়া পর্যন্ত ডেটাবেস আপডেট দেখাবে না
+          setShowAppUpdateModal(true); // আপডেট মডাল ওপেন হবে
         }
 
-        // ✅ ২. ডেটাবেস আপডেট চেক
+        // ২. ডেটাবেস আপডেট চেক
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         const storedDbVersion = localStorage.getItem('dbVersion');
 
         if (dbExists && newVersionData && newVersionData.version !== storedDbVersion) {
           setUpdateNotes(newVersionData.update_notes || "নতুন ডেটাবেস আপডেট পাওয়া গেছে।");
           setUpdateAvailable(newVersionData.version);
+          // ডেটাবেস আপডেটের জন্যও চাইলে এখানে মডাল দিতে পারেন, আপাতত এটা আগের মতোই আছে
           setLoading(false);
           return; 
         }
@@ -217,6 +218,7 @@ export default function App() {
     if (!appApkUrl) return alert("APK ডাউনলোড লিংক পাওয়া যায়নি!");
     
     setLoading(true);
+    setShowAppUpdateModal(false);
     setLoadingMsg("নতুন অ্যাপ ডাউনলোড হচ্ছে...");
     
     try {
@@ -285,20 +287,6 @@ export default function App() {
         <h1 className="display-4 mb-3">☪️</h1>
         <h2>তাফসীর অ্যাপ</h2>
         <p>জ্ঞান অর্জনের সহজ পথ</p>
-      </div>
-    );
-  }
-
-  if (appUpdateAvailable && !loading) {
-    return (
-      <div className="d-flex flex-column justify-content-center align-items-center vh-100 p-4 text-center" style={{ backgroundColor: '#1a1a1a', color: 'white' }}>
-        <h2 className="text-warning mb-3">🚀 নতুন অ্যাপ আপডেট!</h2>
-        <div className="bg-secondary p-3 rounded mb-4" style={{ maxWidth: '400px', width: '100%' }}>
-          <p>নতুন ভার্সন: <strong>v{appUpdateAvailable}</strong></p>
-          <p>{appUpdateNotes}</p>
-        </div>
-        <Button variant="success" size="lg" onClick={handleAppUpdate}>এখনই আপডেট করুন</Button>
-        <Button variant="outline-light" className="mt-3" onClick={() => setAppUpdateAvailable(null)}>পরে করব</Button>
       </div>
     );
   }
@@ -375,16 +363,13 @@ export default function App() {
         </Container>
       </Navbar>
 
-      {/* এখানে Container-এ p-0 দেওয়া হয়েছে */}
       <Container fluid className="mt-2 pb-4 p-0">
-        {/* Row-এ m-0 এবং Col-এ p-0 দেওয়া হয়েছে */}
         <Row className="m-0">
           <Col className="p-0">
             {quransData.length === 0 ? (
               <div className="text-center mt-5 py-4"><h5>কোনো ফলাফল পাওয়া যায়নি!</h5></div>
             ) : (
               quransData.map((item, index) => (
-                /* Card-এ mb-1 দেওয়া হয়েছে */
                 <Card key={index} className={`mb-1 shadow-sm ${cardBg}`} border="secondary">
                   <Card.Header className="d-flex justify-content-between align-items-center bg-dark text-white">
                     <span>{item.book}</span>
@@ -468,6 +453,30 @@ export default function App() {
           </Col>
         </Row>
       </Container>
+
+      {/* নতুন অ্যাপ আপডেটের জন্য সুন্দর মডাল (Modal) */}
+      <Modal 
+        show={showAppUpdateModal} 
+        onHide={() => setShowAppUpdateModal(false)} 
+        centered 
+        backdrop="static" // বাইরে ক্লিক করলে বন্ধ হবে না, তবে "পরে করব" বাটনে ক্লিক করলে বন্ধ হবে
+        className="text-dark"
+      >
+        <Modal.Body className="text-center p-4" style={{ backgroundColor: '#1a1a1a', color: 'white', borderRadius: '10px' }}>
+          <h3 className="text-warning mb-4">🚀 নতুন অ্যাপ আপডেট!</h3>
+          <div className="bg-secondary p-3 rounded mb-4 text-start">
+            <p className="mb-2 text-center fw-bold">নতুন ভার্সন: v{appUpdateAvailable}</p>
+            <hr className="border-light" />
+            <p className="mb-0 text-center">{appUpdateNotes}</p>
+          </div>
+          <Button variant="success" size="lg" className="w-100 mb-3 rounded-pill" onClick={handleAppUpdate}>
+            এখনই আপডেট করুন
+          </Button>
+          <Button variant="outline-light" className="w-100 rounded-pill" onClick={() => setShowAppUpdateModal(false)}>
+            পরে করব
+          </Button>
+        </Modal.Body>
+      </Modal>
 
       <Offcanvas show={showSettings} onHide={() => setShowSettings(false)} placement="end" className={themeClass}>
         <Offcanvas.Header closeButton className="bg-dark text-white">
