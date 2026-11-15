@@ -39,7 +39,6 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [quransData, setQuransData] = useState([]);
   
-  // ✅ নতুন স্টেট: সব সূরা লোড করার জন্য
   const [uniqueSurahs, setUniqueSurahs] = useState([]);
 
   const [darkMode, setDarkMode] = useState(localStorage.getItem('theme') === 'dark');
@@ -128,8 +127,8 @@ export default function App() {
         const books = await database.select('SELECT * FROM books');
         setBooksData(books);
         
-        // ✅ সব ইউনিক সূরা আলাদাভাবে লোড করা
-        const surahs = await database.select('SELECT DISTINCT name FROM qurans WHERE name IS NOT NULL ORDER BY name ASC');
+        // ✅ ড্রপডাউনে দেখানোর জন্য ডেটাবেস থেকে সব ইউনিক সূরা লোড করা
+        const surahs = await database.select('SELECT DISTINCT name FROM qurans WHERE name IS NOT NULL AND name != "" ORDER BY name ASC');
         setUniqueSurahs(surahs.map(s => s.name));
 
         const initialQurans = await database.select('SELECT * FROM qurans LIMIT 50');
@@ -148,13 +147,29 @@ export default function App() {
     async function fetchData() {
       let query = 'SELECT * FROM qurans WHERE 1=1';
       const params = [];
-      if (selectedBook) { query += ' AND book = ?'; params.push(selectedBook); }
-      if (selectedSurah !== "সব সূরা") { query += ' AND name = ?'; params.push(selectedSurah); }
+      
+      // বই ফিল্টার
+      if (selectedBook) { 
+        query += ' AND book = ?'; 
+        params.push(selectedBook); 
+      }
+      
+      // ✅ সূরা ফিল্টার: নামের আংশিক মিল থাকলেও কাজ করবে (LIKE)
+      if (selectedSurah !== "সব সূরা") { 
+        query += ' AND name LIKE ?'; 
+        params.push(`%${selectedSurah}%`); 
+      }
+      
+      // সার্চ কুয়েরি
       if (searchQuery.trim() !== '') {
         query += ' AND (verses LIKE ? OR summary LIKE ? OR ancillary_issue LIKE ?)';
-        const p = `%${searchQuery}%`; params.push(p, p, p);
+        const p = `%${searchQuery}%`; 
+        params.push(p, p, p);
       }
-      query += ' LIMIT 100';
+      
+      // ✅ ডেটা লোড লিমিট বাড়ানো হলো
+      query += ' LIMIT 1000';
+      
       try {
         const results = await db.select(query, params);
         setQuransData(results);
@@ -263,7 +278,6 @@ export default function App() {
   return (
     <div className={themeClass} style={{ minHeight: '100vh', touchAction: 'pan-x pan-y pinch-zoom' }}>
       
-      {/* ✅ মডালের ক্রস চিহ্ন ঠিক করার জন্য স্টাইল */}
       <style>{`
         .btn-close {
           filter: invert(1) grayscale(100%) brightness(200%) !important;
@@ -305,7 +319,6 @@ export default function App() {
         </Container>
       </Navbar>
 
-      {/* ✅ প্যাডিং কমিয়ে লেখা সেন্টারে আনা হয়েছে */}
       <Container fluid className="mt-2 pb-4 px-2">
         <Row>
           <Col>
@@ -319,7 +332,16 @@ export default function App() {
                     <span>{item.name} ({item.number})</span>
                   </Card.Header>
                   <Card.Body>
-                    <div className="p-2 mb-3 rounded" style={{ whiteSpace: "pre-wrap", fontSize: `${fontSize}px`, backgroundColor: darkMode ? '#333' : '#e9ecef' }}>
+                    {/* ✅ আয়াতের বক্স */}
+                    <div 
+                      className={`mb-3 rounded ${darkMode ? 'text-light' : 'text-dark'}`} 
+                      style={{ 
+                        whiteSpace: "pre-wrap", 
+                        fontSize: `${fontSize}px`, 
+                        backgroundColor: darkMode ? '#333' : '#e9ecef',
+                        padding: '10px' 
+                      }}
+                    >
                       {highlightText(item.verses, searchQuery)}
                       <span className="badge bg-warning text-dark ms-2 mt-2 d-inline-block">
                         [{item.name} - {item.number}:{item.versesNumber}]
@@ -345,7 +367,7 @@ export default function App() {
                                 <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.summary)}>কপি</Button>
                                 <Button variant="outline-secondary" size="sm" onClick={() => handleSave(item, 'summary', item.summary)}>সেভ</Button>
                               </div>
-                              <div style={{ whiteSpace: "pre-wrap", fontSize: `${fontSize - 2}px` }}>
+                              <div style={{ whiteSpace: "pre-wrap", fontSize: `${fontSize - 2}px`, color: darkMode ? '#fff' : '#000' }}>
                                 {highlightText(item.summary, searchQuery)}
                               </div>
                             </Tab.Pane>
@@ -355,7 +377,7 @@ export default function App() {
                                 <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.ancillary_issue || "কোন তথ্য নেই")}>কপি</Button>
                                 <Button variant="outline-secondary" size="sm" onClick={() => handleSave(item, 'ancillary', item.ancillary_issue || "কোন তথ্য নেই")}>সেভ</Button>
                               </div>
-                              <div style={{ whiteSpace: "pre-wrap", fontSize: `${fontSize - 2}px` }}>
+                              <div style={{ whiteSpace: "pre-wrap", fontSize: `${fontSize - 2}px`, color: darkMode ? '#fff' : '#000' }}>
                                 {highlightText(item.ancillary_issue || "কোন তথ্য নেই", searchQuery)}
                               </div>
                             </Tab.Pane>
@@ -409,7 +431,7 @@ export default function App() {
                   <Button variant="danger" size="sm" onClick={() => handleDeleteSaved(s.id)}>ডিলিট</Button>
                 </Card.Header>
                 <Card.Body>
-                  <div style={{ whiteSpace: "pre-wrap", fontSize: "14px" }}>{s.content}</div>
+                  <div style={{ whiteSpace: "pre-wrap", fontSize: "14px", color: darkMode ? '#fff' : '#000' }}>{s.content}</div>
                 </Card.Body>
               </Card>
             ))
@@ -421,7 +443,6 @@ export default function App() {
         <Modal.Header closeButton className="bg-dark text-white">
           <Modal.Title>{introContent.title}</Modal.Title>
         </Modal.Header>
-        {/* ✅ মডালের টেক্সট কালো এবং ব্যাকগ্রাউন্ড সাদা করা হয়েছে */}
         <Modal.Body style={{ whiteSpace: "pre-wrap", fontSize: "15px", color: '#000000', backgroundColor: '#ffffff' }}>
           {introContent.body}
         </Modal.Body>
