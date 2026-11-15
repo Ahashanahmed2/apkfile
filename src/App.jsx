@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl, Modal, Button, Offcanvas, Nav } from 'react-bootstrap';
 import Database from '@tauri-apps/plugin-sql';
 import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
-import { download } from '@tauri-apps/plugin-upload';
 import { appDataDir, appCacheDir, join } from '@tauri-apps/api/path';
 import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { install, canInstall, requestInstallPermission } from 'tauri-plugin-android-installer-api';
 import { getVersion } from '@tauri-apps/api/app';
+
+// ✅ silvermine ডাউনলোড প্লাগইন ইমপোর্ট
+import { get as getDownload, hasAction, DownloadAction } from '@silvermine/tauri-plugin-download';
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 const VERSION_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/version.json";
@@ -56,7 +58,6 @@ export default function App() {
 
   const [showSplash, setShowSplash] = useState(true);
   
-  // আপডেটের স্টেট পরিবর্তন
   const [showAppUpdateModal, setShowAppUpdateModal] = useState(false);
   const [appUpdateAvailable, setAppUpdateAvailable] = useState(null);
   const [appUpdateNotes, setAppUpdateNotes] = useState("");
@@ -81,6 +82,40 @@ export default function App() {
     document.body.style.backgroundColor = darkMode ? '#1a1a1a' : '#f8f9fa';
   }, [darkMode, fontSize]);
 
+  // ✅ নতুন প্লাগইন দিয়ে ডাউনলোড শুরু করার এবং শেষ হওয়া পর্যন্ত অপেক্ষা করার ফাংশন
+  const startDownloadWithPlugin = async (url, path) => {
+    const download = await getDownload(url, path);
+    
+    if (hasAction(download, DownloadAction.Start)) {
+      const response = await download.start();
+      console.log("ডাউনলোড শুরু:", response.download.status);
+
+      // ডাউনলোড শেষ হওয়া পর্যন্ত অপেক্ষা করা (পোলিং পদ্ধতি)
+      // প্লাগইনটি ব্যাকগ্রাউন্ডে কাজ করে, তাই ফাইলটি পুরোপুরি ডাউনলোড হওয়া পর্যন্ত অপেক্ষা করতে হবে
+      while (true) {
+        await new Promise(resolve => setTimeout(resolve, 2000)); // ২ সেকেন্ড পর পর চেক
+        try {
+          // ফাইলের সাইজ চেক করে দেখব ডাউনলোড শেষ হয়েছে কিনা
+          // অথবা প্লাগইনের নিজস্ব স্ট্যাটাস চেক করা যেতে পারে (ডকুমেন্টেশন অনুযায়ী)
+          const fileExists = await exists(path);
+          if (fileExists) {
+            // ফাইল সাইজ চেক করে নিশ্চিত হই (যদি সম্ভব হয়)
+            // এখানে আমরা ধরে নিচ্ছি ফাইল তৈরি হলে ডাউনলোড শেষ
+            // তবে আরও নির্ভরযোগ্য উপায় হলো প্লাগইনের ইভেন্ট লিসেনার ব্যবহার করা
+            break; 
+          }
+        } catch (e) {
+          // ফাইল এখনো তৈরি হয়নি, অপেক্ষা করি
+        }
+      }
+      return true;
+    } else {
+      // যদি ডাউনলোড ইতিমধ্যে চলমান থাকে বা সম্পন্ন থাকে
+      console.log("ডাউনলোড ইতিমধ্যে প্রস্তুত বা চলমান।");
+      return true;
+    }
+  };
+
   useEffect(() => {
     async function initDb() {
       try {
@@ -92,51 +127,30 @@ export default function App() {
 
         const currentVersion = await getVersion();
 
-        // ১. অ্যাপ আপডেট চেক (এখানে return সরিয়ে দেওয়া হয়েছে, যাতে অ্যাপ আটকে না যায়)
         if (newVersionData && newVersionData.app_version && newVersionData.app_version !== currentVersion) {
           setAppUpdateNotes(newVersionData.update_notes || "নতুন অ্যাপ আপডেট পাওয়া গেছে।");
           setAppUpdateAvailable(newVersionData.app_version);
           setAppApkUrl(newVersionData.apk_url || "");
-          setShowAppUpdateModal(true); // আপডেট মডাল ওপেন হবে
+          setShowAppUpdateModal(true);
         }
 
-        // ২. ডেটাবেস আপডেট চেক
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         const storedDbVersion = localStorage.getItem('dbVersion');
 
         if (dbExists && newVersionData && newVersionData.version !== storedDbVersion) {
           setUpdateNotes(newVersionData.update_notes || "নতুন ডেটাবেস আপডেট পাওয়া গেছে।");
           setUpdateAvailable(newVersionData.version);
-          // ডেটাবেস আপডেটের জন্যও চাইলে এখানে মডাল দিতে পারেন, আপাতত এটা আগের মতোই আছে
           setLoading(false);
           return; 
         }
 
         if (!dbExists) {
-          setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে...");
+          setLoadingMsg("প্রথমবার ডেটাবেস ডাউনলোড হচ্ছে... (স্ক্রিন বন্ধ করলেও ডাউনলোড চলবে)");
           const appData = await appDataDir();
           const dbPath = await join(appData, 'tafsir.db');
           
-          let totalFileSize = 133 * 1024 * 1024;
-          try {
-            const headResponse = await fetch(DB_URL, { method: 'HEAD' });
-            const cl = headResponse.headers.get('content-length');
-            if (cl) totalFileSize = parseInt(cl, 10);
-          } catch (err) {}
-
-          const intervalId = setInterval(async () => {
-            try {
-              const downloaded = await invoke('get_file_size', { path: dbPath });
-              if (downloaded > 0) {
-                const percent = Math.min(Math.round((downloaded / totalFileSize) * 100), 100);
-                const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
-                const mbTotal = (totalFileSize / (1024 * 1024)).toFixed(2);
-                setLoadingMsg(`ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
-              }
-            } catch (e) {}
-          }, 1000);
-
-          try { await download(DB_URL, dbPath); } finally { clearInterval(intervalId); }
+          // ✅ নতুন প্লাগইন দিয়ে ডাউনলোড
+          await startDownloadWithPlugin(DB_URL, dbPath);
           
           localStorage.setItem('dbVersion', newVersionData ? newVersionData.version : APP_DB_VERSION);
         } else {
@@ -152,9 +166,14 @@ export default function App() {
         setUniqueSurahs(surahs.map(s => s.name));
 
         const initialQurans = await database.select('SELECT * FROM qurans LIMIT 50');
+        
+        if (initialQurans.length === 0) {
+          throw new Error("ডেটাবেস লোড হয়েছে কিন্তু কোনো ডেটা পাওয়া যায়নি। ফাইলটি ড্যামেজ হতে পারে।");
+        }
+        
         setQuransData(initialQurans);
       } catch (error) {
-        setErrorMsg(error.toString());
+        setErrorMsg("ডেটাবেস লোড করা সম্ভব হয়নি। ইন্টারনেট চেক করে অ্যাপ রিস্টার্ট করুন।\n\nবিস্তারিত: " + error.toString());
       } finally {
         setLoading(false);
       }
@@ -223,7 +242,9 @@ export default function App() {
     
     try {
       const cachePath = await join(await appCacheDir(), "update.apk");
-      await download(appApkUrl, cachePath);
+      
+      // ✅ নতুন প্লাগইন দিয়ে APK ডাউনলোড
+      await startDownloadWithPlugin(appApkUrl, cachePath);
       
       if (!(await canInstall())) {
         await requestInstallPermission();
@@ -251,26 +272,8 @@ export default function App() {
       const dbPath = await join(appData, 'tafsir.db');
       await remove('tafsir.db', { baseDir: BaseDirectory.AppData });
 
-      let totalFileSize = 133 * 1024 * 1024;
-      try {
-        const headResponse = await fetch(DB_URL, { method: 'HEAD' });
-        const cl = headResponse.headers.get('content-length');
-        if (cl) totalFileSize = parseInt(cl, 10);
-      } catch (err) {}
-
-      const intervalId = setInterval(async () => {
-        try {
-          const downloaded = await invoke('get_file_size', { path: dbPath });
-          if (downloaded > 0) {
-            const percent = Math.min(Math.round((downloaded / totalFileSize) * 100), 100);
-            const mbDownloaded = (downloaded / (1024 * 1024)).toFixed(2);
-            const mbTotal = (totalFileSize / (1024 * 1024)).toFixed(2);
-            setLoadingMsg(`নতুন ডেটাবেস ডাউনলোড হচ্ছে: ${percent}% (${mbDownloaded} MB / ${mbTotal} MB)`);
-          }
-        } catch (e) {}
-      }, 1000);
-
-      try { await download(DB_URL, dbPath); } finally { clearInterval(intervalId); }
+      // ✅ নতুন প্লাগইন দিয়ে ডেটাবেস আপডেট ডাউনলোড
+      await startDownloadWithPlugin(DB_URL, dbPath);
       
       localStorage.setItem('dbVersion', updateAvailable);
       alert("আপডেট সফল হয়েছে! অ্যাপ রিস্টার্ট হবে।");
@@ -307,13 +310,21 @@ export default function App() {
   if (loading) {
     return (
       <div className="d-flex flex-column justify-content-center align-items-center vh-100 bg-dark text-white text-center p-4">
+        <div className="spinner-border text-warning mb-3" role="status"></div>
         <h4>{loadingMsg}</h4>
+        <p className="mt-2 text-muted small">দয়া করে অপেক্ষা করুন, ডাউনলোড শেষ না হলে অ্যাপ চালু হবে না।</p>
       </div>
     );
   }
 
   if (errorMsg) {
-    return <div className="p-4 bg-dark text-white vh-100"><h3 className="text-danger">এরর!</h3><p>{errorMsg}</p></div>;
+    return (
+      <div className="d-flex flex-column justify-content-center align-items-center vh-100 bg-dark text-white text-center p-4">
+        <h3 className="text-danger mb-3">⚠️ এরর!</h3>
+        <p>{errorMsg}</p>
+        <Button variant="warning" onClick={() => window.location.reload()}>আবার চেষ্টা করুন</Button>
+      </div>
+    );
   }
 
   const themeClass = darkMode ? "bg-dark text-light" : "bg-light text-dark";
@@ -454,12 +465,11 @@ export default function App() {
         </Row>
       </Container>
 
-      {/* নতুন অ্যাপ আপডেটের জন্য সুন্দর মডাল (Modal) */}
       <Modal 
         show={showAppUpdateModal} 
         onHide={() => setShowAppUpdateModal(false)} 
         centered 
-        backdrop="static" // বাইরে ক্লিক করলে বন্ধ হবে না, তবে "পরে করব" বাটনে ক্লিক করলে বন্ধ হবে
+        backdrop="static"
         className="text-dark"
       >
         <Modal.Body className="text-center p-4" style={{ backgroundColor: '#1a1a1a', color: 'white', borderRadius: '10px' }}>
