@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl, Modal, Button, Offcanvas } from 'react-bootstrap';
+import { Container, Row, Col, Card, ListGroup, Tab, Navbar, Dropdown, Form, FormControl, Modal, Button, Offcanvas, Nav } from 'react-bootstrap';
 import Database from '@tauri-apps/plugin-sql';
 import { exists, BaseDirectory, remove } from '@tauri-apps/plugin-fs';
 import { download } from '@tauri-apps/plugin-upload';
@@ -375,14 +375,17 @@ export default function App() {
         </Container>
       </Navbar>
 
-      <Container fluid className="mt-2 pb-4 px-2">
-        <Row>
-          <Col>
+      {/* এখানে Container-এ p-0 দেওয়া হয়েছে */}
+      <Container fluid className="mt-2 pb-4 p-0">
+        {/* Row-এ m-0 এবং Col-এ p-0 দেওয়া হয়েছে */}
+        <Row className="m-0">
+          <Col className="p-0">
             {quransData.length === 0 ? (
               <div className="text-center mt-5 py-4"><h5>কোনো ফলাফল পাওয়া যায়নি!</h5></div>
             ) : (
               quransData.map((item, index) => (
-                <Card key={index} className={`mb-3 shadow-sm ${cardBg}`} border="secondary">
+                /* Card-এ mb-1 দেওয়া হয়েছে */
+                <Card key={index} className={`mb-1 shadow-sm ${cardBg}`} border="secondary">
                   <Card.Header className="d-flex justify-content-between align-items-center bg-dark text-white">
                     <span>{item.book}</span>
                     <span>{item.name} ({item.number})</span>
@@ -394,7 +397,7 @@ export default function App() {
                         whiteSpace: "pre-wrap", 
                         fontSize: `${fontSize}px`, 
                         backgroundColor: darkMode ? '#333' : '#e9ecef',
-                        padding: '10px' 
+                        padding: '15px' 
                       }}
                     >
                       {highlightText(item.verses, searchQuery)}
@@ -408,37 +411,55 @@ export default function App() {
                     </div>
 
                     <Tab.Container id={`tabs-${index}`} defaultActiveKey="first">
-                      <Row>
-                        <Col sm={4}>
-                          <ListGroup>
-                            <ListGroup.Item action eventKey="first" className={darkMode ? "bg-dark text-light border-secondary" : "text-dark"}>সারসংক্ষেপ</ListGroup.Item>
-                            <ListGroup.Item action eventKey="second" className={darkMode ? "bg-dark text-light border-secondary" : "text-dark"}>আনুষঙ্গিক বিষয়</ListGroup.Item>
-                          </ListGroup>
-                        </Col>
-                        <Col sm={8}>
-                          <Tab.Content>
-                            <Tab.Pane eventKey="first">
-                              <div className="d-flex justify-content-end mb-2 gap-1">
-                                <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.summary)}>কপি</Button>
-                                <Button variant="outline-secondary" size="sm" onClick={() => handleSave(item, 'summary', item.summary)}>সেভ</Button>
-                              </div>
-                              <div style={{ whiteSpace: "pre-wrap", fontSize: `${fontSize - 2}px`, color: darkMode ? '#fff' : '#000' }}>
-                                {highlightText(item.summary, searchQuery)}
-                              </div>
-                            </Tab.Pane>
-                            
-                            <Tab.Pane eventKey="second">
-                              <div className="d-flex justify-content-end mb-2 gap-1">
-                                <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.ancillary_issue || "কোন তথ্য নেই")}>কপি</Button>
-                                <Button variant="outline-secondary" size="sm" onClick={() => handleSave(item, 'ancillary', item.ancillary_issue || "কোন তথ্য নেই")}>সেভ</Button>
-                              </div>
-                              <div style={{ whiteSpace: "pre-wrap", fontSize: `${fontSize - 2}px`, color: darkMode ? '#fff' : '#000' }}>
-                                {highlightText(item.ancillary_issue || "কোন তথ্য নেই", searchQuery)}
-                              </div>
-                            </Tab.Pane>
-                          </Tab.Content>
-                        </Col>
-                      </Row>
+                      
+                      <Nav variant="pills" className="flex-row mb-3 gap-2">
+                        <Nav.Item>
+                          <Nav.Link eventKey="first" className={darkMode ? "text-light border border-secondary" : "text-dark border"}>
+                            সারসংক্ষেপ
+                          </Nav.Link>
+                        </Nav.Item>
+                        <Nav.Item>
+                          <Nav.Link eventKey="second" className={darkMode ? "text-light border border-secondary" : "text-dark border"}>
+                            আনুষঙ্গিক বিষয়
+                          </Nav.Link>
+                        </Nav.Item>
+                      </Nav>
+
+                      <Tab.Content>
+                        <Tab.Pane eventKey="first">
+                          <div className="d-flex justify-content-end mb-2 gap-1">
+                            <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.summary || "কোন তথ্য নেই")}>কপি</Button>
+                            <Button variant="outline-secondary" size="sm" onClick={() => handleSave(item, 'summary', item.summary || "কোন তথ্য নেই")}>সেভ</Button>
+                          </div>
+                          <div style={{ 
+                            whiteSpace: "pre-wrap", 
+                            fontSize: `${fontSize - 2}px`, 
+                            color: darkMode ? '#fff' : '#000',
+                            backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
+                            padding: '15px',
+                            borderRadius: '8px'
+                          }}>
+                            {highlightText(item.summary || "কোন তথ্য নেই", searchQuery)}
+                          </div>
+                        </Tab.Pane>
+                        
+                        <Tab.Pane eventKey="second">
+                          <div className="d-flex justify-content-end mb-2 gap-1">
+                            <Button variant="outline-secondary" size="sm" onClick={() => handleCopy(item.ancillary_issue || "কোন তথ্য নেই")}>কপি</Button>
+                            <Button variant="outline-secondary" size="sm" onClick={() => handleSave(item, 'ancillary', item.ancillary_issue || "কোন তথ্য নেই")}>সেভ</Button>
+                          </div>
+                          <div style={{ 
+                            whiteSpace: "pre-wrap", 
+                            fontSize: `${fontSize - 2}px`, 
+                            color: darkMode ? '#fff' : '#000',
+                            backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
+                            padding: '15px',
+                            borderRadius: '8px'
+                          }}>
+                            {highlightText(item.ancillary_issue || "কোন তথ্য নেই", searchQuery)}
+                          </div>
+                        </Tab.Pane>
+                      </Tab.Content>
                     </Tab.Container>
                   </Card.Body>
                 </Card>
