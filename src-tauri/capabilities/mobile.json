@@ -4,6 +4,7 @@
   "description": "Mobile capabilities",
   "platforms": ["android", "iOS"],
   "permissions": [
+    "download:default",
     "core:default",
     "sql:default",
     "sql:allow-execute",
