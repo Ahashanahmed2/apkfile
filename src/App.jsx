@@ -8,11 +8,11 @@ import { fetch } from '@tauri-apps/plugin-http';
 import { invoke } from '@tauri-apps/api/core';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { install, canInstall, requestInstallPermission } from 'tauri-plugin-android-installer-api';
+import { getVersion } from '@tauri-apps/api/app'; // ✅ অ্যাপের ভার্সন ডাইনামিক করার জন্য ইমপোর্ট
 
 const DB_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/tafsir.db";
 const VERSION_URL = "https://huggingface.co/datasets/ahashanahmed/tafsir/resolve/main/version.json";
 const APP_DB_VERSION = "1.0";
-const CURRENT_APP_VERSION = "1.0.0"; // ✅ আপনার অ্যাপের বর্তমান ভার্সন
 
 const highlightText = (text, query) => {
   if (!text) return "";
@@ -58,7 +58,6 @@ export default function App() {
   const [updateAvailable, setUpdateAvailable] = useState(null);
   const [updateNotes, setUpdateNotes] = useState("");
 
-  // ✅ নতুন স্টেট: অ্যাপ আপডেটের জন্য
   const [appUpdateAvailable, setAppUpdateAvailable] = useState(null);
   const [appUpdateNotes, setAppUpdateNotes] = useState("");
   const [appApkUrl, setAppApkUrl] = useState("");
@@ -88,21 +87,25 @@ export default function App() {
           if (versionRes.ok) newVersionData = await versionRes.json();
         } catch (e) {}
 
-        // ✅ অ্যাপ আপডেট চেক
-        if (newVersionData && newVersionData.app_version && newVersionData.app_version !== CURRENT_APP_VERSION) {
+        // ✅ ডাইনামিকভাবে অ্যাপের বর্তমান ভার্সন নেওয়া
+        const currentVersion = await getVersion();
+        console.log("Current App Version:", currentVersion);
+
+        // ✅ ১. অ্যাপ আপডেট চেক
+        if (newVersionData && newVersionData.app_version && newVersionData.app_version !== currentVersion) {
           setAppUpdateNotes(newVersionData.update_notes || "নতুন অ্যাপ আপডেট পাওয়া গেছে।");
           setAppUpdateAvailable(newVersionData.app_version);
           setAppApkUrl(newVersionData.apk_url || "");
           setLoading(false);
-          return;
+          return; // অ্যাপ আপডেট না হওয়া পর্যন্ত ডেটাবেস আপডেট দেখাবে না
         }
 
-        // ✅ ডেটাবেস আপডেট চেক
+        // ✅ ২. ডেটাবেস আপডেট চেক
         const dbExists = await exists('tafsir.db', { baseDir: BaseDirectory.AppData });
         const storedDbVersion = localStorage.getItem('dbVersion');
 
         if (dbExists && newVersionData && newVersionData.version !== storedDbVersion) {
-          setUpdateNotes(newVersionData.update_notes || "নতুন আপডেট পাওয়া গেছে।");
+          setUpdateNotes(newVersionData.update_notes || "নতুন ডেটাবেস আপডেট পাওয়া গেছে।");
           setUpdateAvailable(newVersionData.version);
           setLoading(false);
           return; 
@@ -210,7 +213,6 @@ export default function App() {
     localStorage.setItem('savedTafsir', JSON.stringify(updated));
   };
 
-  // ✅ অ্যাপ আপডেট ইনস্টল করার ফাংশন
   const handleAppUpdate = async () => {
     if (!appApkUrl) return alert("APK ডাউনলোড লিংক পাওয়া যায়নি!");
     
@@ -219,7 +221,6 @@ export default function App() {
     
     try {
       const cachePath = await join(await appCacheDir(), "update.apk");
-      
       await download(appApkUrl, cachePath);
       
       if (!(await canInstall())) {
@@ -288,7 +289,6 @@ export default function App() {
     );
   }
 
-  // ✅ অ্যাপ আপডেট স্ক্রিন (ডেটাবেস আপডেটের আগে দেখাবে)
   if (appUpdateAvailable && !loading) {
     return (
       <div className="d-flex flex-column justify-content-center align-items-center vh-100 p-4 text-center" style={{ backgroundColor: '#1a1a1a', color: 'white' }}>
