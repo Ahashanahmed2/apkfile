@@ -4,6 +4,7 @@
   "description": "Default capabilities",
   "windows": ["main"],
   "permissions": [
+    "download:default",
     "core:default",
     "sql:default",
     "sql:allow-execute",
