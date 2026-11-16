@@ -41,22 +41,26 @@ jobs:
           npm install --package-lock-only
           npm install
         
-        
       - name: Force Install missing packages
         run: |
           npm install @tauri-apps/plugin-clipboard-manager
-          
+
+      # ✅ ১. Secrets থেকে কী-স্টোর ফাইলটি ডিকোড করে তৈরি করা
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 --decode > ${{ github.workspace }}/my-release-key.jks
+
       - name: Init Android project
         run: npx tauri android init --ci
 
+      # ✅ ২. বিল্ড করার সময় এনভায়রনমেন্ট ভেরিয়েবল হিসেবে Secrets পাস করা
       - name: Build APK
         run: npx tauri android build --apk
-
-      - name: Sign APK
-        run: |
-          cd src-tauri/gen/android/app/build/outputs/apk/universal/release/
-          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out app-universal-release-signed.apk app-universal-release-unsigned.apk
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/my-release-key.jks
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
