@@ -415,7 +415,7 @@ export default function App() {
                         whiteSpace: "pre-wrap", 
                         fontSize: `${fontSize}px`, 
                         backgroundColor: darkMode ? '#333' : '#e9ecef',
-                        padding: '10px' // এখানে ১০ পিক্সেল প্যাডিং রাখা হলো
+                        padding: '2px' // এখানে ১০ পিক্সেল প্যাডিং রাখা হলো
                       }}
                     >
                       {highlightText(item.verses, searchQuery)}
@@ -425,7 +425,7 @@ export default function App() {
                     </div>
                     
                     {/* ২. কপি ও সেভ বাটন */}
-                    <div className="d-flex gap-1" style={{ padding: '10px 5px 0 5px' }}>
+                    <div className="d-flex gap-1" style={{ padding: '10px 2px 0 2px' }}>
                       <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.verses)}>কপি</Button>
                       <Button variant="outline-warning" size="sm" className="flex-fill" onClick={() => handleSave(item, 'verses', item.verses)}>সেভ</Button>
                     </div>
@@ -433,7 +433,7 @@ export default function App() {
                     {/* ৩. ট্যাব সেকশন */}
                     <Tab.Container id={`tabs-${index}`}>
                       
-                      <Nav variant="pills" className="flex-row gap-1" style={{ padding: '10px 5px 0 5px' }}>
+                      <Nav variant="pills" className="flex-row gap-1" style={{ padding: '10px 2px 0 2px' }}>
                         <Nav.Item className="flex-fill text-center">
                           <Nav.Link eventKey="first" className={darkMode ? "text-light border border-secondary py-1" : "text-dark border py-1"}>
                             সারসংক্ষেপ
@@ -462,14 +462,14 @@ export default function App() {
                             fontSize: `${fontSize - 2}px`, 
                             color: darkMode ? '#fff' : '#000',
                             backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
-                            padding: '10px 5px', // লেখা কিনারায় না লাগার জন্য ৫ পিক্সেল
+                            padding: '10px 2px', // লেখা কিনারায় না লাগার জন্য পিক্সেল
                           }}>
                             {highlightText(item.summary || "কোন তথ্য নেই", searchQuery)}
                           </div>
                         </Tab.Pane>
                         
                         <Tab.Pane eventKey="second">
-                          <div className="d-flex justify-content-end gap-1" style={{ padding: '10px 5px 0 5px' }}>
+                          <div className="d-flex justify-content-end gap-1" style={{ padding: '10px 2px 0 2px' }}>
                             <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.ancillary_issue || "কোন তথ্য নেই")}>কপি</Button>
                             <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleSave(item, 'ancillary', item.ancillary_issue || "কোন তথ্য নেই")}>সেভ</Button>
                           </div>
@@ -478,7 +478,7 @@ export default function App() {
                             fontSize: `${fontSize - 2}px`, 
                             color: darkMode ? '#fff' : '#000',
                             backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
-                            padding: '10px 5px', // লেখা কিনারায় না লাগার জন্য ৫ পিক্সেল
+                            padding: '10px 2px', // লেখা কিনারায় না লাগার জন্য ২ পিক্সেল
                           }}>
                             {highlightText(item.ancillary_issue || "কোন তথ্য নেই", searchQuery)}
                           </div>
