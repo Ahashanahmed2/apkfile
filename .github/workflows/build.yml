@@ -45,31 +45,34 @@ jobs:
         run: |
           npm install @tauri-apps/plugin-clipboard-manager
 
-      # ✅ ১. আপনার Base64 সিক্রেট থেকে আসল চাবিটি তৈরি করা
-      - name: Decode Keystore
+      # ✅ ১. আপনার দেওয়া asdFGH নাম ব্যবহার করে চাবি তৈরি করা
+      - name: Generate Custom Keystore
         run: |
-          echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 --decode > ${{ github.workspace }}/my-release-key.jks
+          keytool -genkeypair -v -keystore ${{ github.workspace }}/my-release-key.jks \
+            -alias ${{ secrets.ANDROID_KEY_ALIAS }} \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass ${{ secrets.ANDROID_STORE_PASSWORD }} \
+            -keypass ${{ secrets.ANDROID_KEY_PASSWORD }} \
+            -dname "CN=Tafsir App, OU=Dev, O=Tafsir, L=Dhaka, ST=Dhaka, C=BD"
           
       - name: Init Android project
         run: npx tauri android init --ci
 
-      # ✅ ২. Tauri বিল্ড করা (এটি আনসাইনড APK তৈরি করবে)
+      # ✅ ২. Tauri বিল্ড করা
       - name: Build APK
         run: npx tauri android build --apk
 
-      # ✅ ৩. আপনার নিজের আসল চাবি দিয়ে APK সাইন করা
+      # ✅ ৩. আপনার নিজের চাবি দিয়ে APK সাইন করা
       - name: Sign APK with Custom Keystore
         run: |
           cd src-tauri/gen/android/app/build/outputs/apk/universal/release/
           
-          # ফাইলের নাম পরিবর্তন করা (Tauri কখনো -unsigned নাম দেয়, কখনো দেয় না)
           if [ -f "app-universal-release-unsigned.apk" ]; then
             UNSIGNED_APK="app-universal-release-unsigned.apk"
           else
             UNSIGNED_APK="app-universal-release.apk"
           fi
 
-          # apksigner দিয়ে আপনার নিজের চাবি ব্যবহার করে সাইন করা
           $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
             --ks ${{ github.workspace }}/my-release-key.jks \
             --ks-pass pass:${{ secrets.ANDROID_STORE_PASSWORD }} \
@@ -78,7 +81,7 @@ jobs:
             --out app-universal-release-signed.apk \
             $UNSIGNED_APK
 
-      # ✅ ৪. সাইন করা ফাইলটি আপলোড করা (এটি আপনার পুরনো পাথের মতোই)
+      # ✅ ৪. সাইন করা ফাইলটি আপলোড করা
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
