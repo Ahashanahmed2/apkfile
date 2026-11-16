@@ -45,7 +45,7 @@ jobs:
         run: |
           npm install @tauri-apps/plugin-clipboard-manager
 
-      # ✅ ১. Secrets থেকে কী-স্টোর ফাইলটি ডিকোড করে তৈরি করা
+      # ✅ ১. আপনার Base64 সিক্রেট থেকে .jks ফাইলটি তৈরি করা
       - name: Decode Keystore
         run: |
           echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 --decode > ${{ github.workspace }}/my-release-key.jks
@@ -53,7 +53,7 @@ jobs:
       - name: Init Android project
         run: npx tauri android init --ci
 
-      # ✅ ২. বিল্ড করার সময় এনভায়রনমেন্ট ভেরিয়েবল হিসেবে Secrets পাস করা
+      # ✅ ২. সিক্রেট পাসওয়ার্ড ব্যবহার করে APK বিল্ড করা (Tauri নিজেই সাইন করবে)
       - name: Build APK
         run: npx tauri android build --apk
         env:
@@ -62,8 +62,9 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
 
+      # ✅ ৩. সঠিক নামের ফাইলটি আপলোড করা (-signed ছাড়া)
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-apk
-          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-signed.apk
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
