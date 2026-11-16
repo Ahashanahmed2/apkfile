@@ -354,7 +354,7 @@ export default function App() {
       `}</style>
 
       <Navbar sticky="top" className="bg-warning px-2 shadow-sm" style={{ margin: 0 }}>
-        <Container fluid style={{ padding: '0 8px' }}>
+        <Container fluid style={{ padding: '0 1 }}>
           <Dropdown>
             <Dropdown.Toggle variant="success" id="book-dropdown" size="sm">
               {selectedBook ? selectedBook : "সব বই"}
