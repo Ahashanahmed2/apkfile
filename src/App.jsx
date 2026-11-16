@@ -65,7 +65,7 @@ function TafsirContent({ item, darkMode, fontSize, searchQuery, handleCopy, hand
       <div style={{ padding: '0px', margin: '0px' }}>
         {activeTab === 'first' && (
           <div>
-            <div className="d-flex justify-content-end gap-1" style={{ padding: '10px 5px 0 5px' }}>
+            <div className="d-flex justify-content-end gap-1" style={{ padding: '10px 3px 0 3px' }}>
               <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.summary || "কোন তথ্য নেই")}>কপি</Button>
               <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleSave(item, 'summary', item.summary || "কোন তথ্য নেই")}>সেভ</Button>
             </div>
@@ -74,7 +74,7 @@ function TafsirContent({ item, darkMode, fontSize, searchQuery, handleCopy, hand
               fontSize: `${fontSize - 2}px`, 
               color: darkMode ? '#fff' : '#000',
               backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
-              padding: '10px 5px',
+              padding: '10px 3px',
             }}>
               {highlightText(item.summary || "কোন তথ্য নেই", searchQuery)}
             </div>
@@ -92,7 +92,7 @@ function TafsirContent({ item, darkMode, fontSize, searchQuery, handleCopy, hand
               fontSize: `${fontSize - 2}px`, 
               color: darkMode ? '#fff' : '#000',
               backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
-              padding: '10px 5px',
+              padding: '10px 3px',
             }}>
               {highlightText(item.ancillary_issue || "কোন তথ্য নেই", searchQuery)}
             </div>
@@ -425,7 +425,7 @@ export default function App() {
       `}</style>
 
       <Navbar sticky="top" className="bg-warning px-2 shadow-sm" style={{ margin: 0 }}>
-        <Container fluid style={{ padding: '0 8px' }}>
+        <Container fluid style={{ padding: '0 1px' }}>
           <Dropdown>
             <Dropdown.Toggle variant="success" id="book-dropdown" size="sm">
               {selectedBook ? selectedBook : "সব বই"}
@@ -472,7 +472,7 @@ export default function App() {
                   border="secondary"
                   style={{ borderRadius: '0px', margin: '0px', width: '100%' }}
                 >
-                  <Card.Header className="d-flex justify-content-between align-items-center bg-dark text-white" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
+                  <Card.Header className="d-flex justify-content-between align-items-center bg-dark text-white" style={{ paddingLeft: '3px', paddingRight: '3px' }}>
                     <span>{item.book}</span>
                     <span>{item.name} ({item.number})</span>
                   </Card.Header>
@@ -485,7 +485,7 @@ export default function App() {
                         whiteSpace: "pre-wrap", 
                         fontSize: `${fontSize}px`, 
                         backgroundColor: darkMode ? '#333' : '#e9ecef',
-                        padding: '10px'
+                        padding: '5px'
                       }}
                     >
                       {highlightText(item.verses, searchQuery)}
@@ -494,7 +494,7 @@ export default function App() {
                       </span>
                     </div>
                     
-                    <div className="d-flex gap-1" style={{ padding: '10px 5px 0 5px' }}>
+                    <div className="d-flex gap-1" style={{ padding: '10px 3px 0 3px' }}>
                       <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.verses)}>কপি</Button>
                       <Button variant="outline-warning" size="sm" className="flex-fill" onClick={() => handleSave(item, 'verses', item.verses)}>সেভ</Button>
                     </div>
