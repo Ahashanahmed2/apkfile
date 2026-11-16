@@ -45,26 +45,42 @@ jobs:
         run: |
           npm install @tauri-apps/plugin-clipboard-manager
 
-      # ✅ ১. আপনার Base64 সিক্রেট থেকে .jks ফাইলটি তৈরি করা
+      # ✅ ১. আপনার Base64 সিক্রেট থেকে আসল চাবিটি তৈরি করা
       - name: Decode Keystore
         run: |
           echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 --decode > ${{ github.workspace }}/my-release-key.jks
-
+          
       - name: Init Android project
         run: npx tauri android init --ci
 
-      # ✅ ২. সিক্রেট পাসওয়ার্ড ব্যবহার করে APK বিল্ড করা (Tauri নিজেই সাইন করবে)
+      # ✅ ২. Tauri বিল্ড করা (এটি আনসাইনড APK তৈরি করবে)
       - name: Build APK
         run: npx tauri android build --apk
-        env:
-          ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/my-release-key.jks
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
 
-      # ✅ ৩. সঠিক নামের ফাইলটি আপলোড করা (-signed ছাড়া)
+      # ✅ ৩. আপনার নিজের আসল চাবি দিয়ে APK সাইন করা
+      - name: Sign APK with Custom Keystore
+        run: |
+          cd src-tauri/gen/android/app/build/outputs/apk/universal/release/
+          
+          # ফাইলের নাম পরিবর্তন করা (Tauri কখনো -unsigned নাম দেয়, কখনো দেয় না)
+          if [ -f "app-universal-release-unsigned.apk" ]; then
+            UNSIGNED_APK="app-universal-release-unsigned.apk"
+          else
+            UNSIGNED_APK="app-universal-release.apk"
+          fi
+
+          # apksigner দিয়ে আপনার নিজের চাবি ব্যবহার করে সাইন করা
+          $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+            --ks ${{ github.workspace }}/my-release-key.jks \
+            --ks-pass pass:${{ secrets.ANDROID_STORE_PASSWORD }} \
+            --key-pass pass:${{ secrets.ANDROID_KEY_PASSWORD }} \
+            --ks-key-alias ${{ secrets.ANDROID_KEY_ALIAS }} \
+            --out app-universal-release-signed.apk \
+            $UNSIGNED_APK
+
+      # ✅ ৪. সাইন করা ফাইলটি আপলোড করা (এটি আপনার পুরনো পাথের মতোই)
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-apk
-          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk
+          path: src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release-signed.apk
