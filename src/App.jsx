@@ -29,6 +29,80 @@ const highlightText = (text, query) => {
   );
 };
 
+// ✅ কার্ডের ভেতরের কন্টেন্ট (Tab) হ্যান্ডেল করার জন্য আলাদা কম্পোনেন্ট
+function TafsirContent({ item, darkMode, fontSize, searchQuery, handleCopy, handleSave }) {
+  // activeTab স্টেট: শুরুতে null থাকবে, যাতে কোনো ট্যাব ওপেন না থাকে
+  const [activeTab, setActiveTab] = useState(null);
+
+  const toggleTab = (tab) => {
+    // যদি একই ট্যাবে ক্লিক করা হয়, তবে সেটি বন্ধ (null) হয়ে যাবে, অন্যথায় সেটি ওপেন হবে
+    setActiveTab(activeTab === tab ? null : tab);
+  };
+
+  return (
+    <>
+      {/* বাটনগুলো (Nav pills-এর বদলে সাধারণ বাটন ব্যবহার করা হলো) */}
+      <div className="d-flex gap-1" style={{ padding: '10px 5px 0 5px' }}>
+        <Button 
+          variant={activeTab === 'first' ? 'primary' : (darkMode ? 'outline-light' : 'outline-secondary')} 
+          size="sm" 
+          className="flex-fill" 
+          onClick={() => toggleTab('first')}
+        >
+          সারসংক্ষেপ
+        </Button>
+        <Button 
+          variant={activeTab === 'second' ? 'primary' : (darkMode ? 'outline-light' : 'outline-secondary')} 
+          size="sm" 
+          className="flex-fill" 
+          onClick={() => toggleTab('second')}
+        >
+          আনুষঙ্গিক বিষয়
+        </Button>
+      </div>
+
+      {/* কন্টেন্ট এরিয়া */}
+      <div style={{ padding: '0px', margin: '0px' }}>
+        {activeTab === 'first' && (
+          <div>
+            <div className="d-flex justify-content-end gap-1" style={{ padding: '10px 5px 0 5px' }}>
+              <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.summary || "কোন তথ্য নেই")}>কপি</Button>
+              <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleSave(item, 'summary', item.summary || "কোন তথ্য নেই")}>সেভ</Button>
+            </div>
+            <div style={{ 
+              whiteSpace: "pre-wrap", 
+              fontSize: `${fontSize - 2}px`, 
+              color: darkMode ? '#fff' : '#000',
+              backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
+              padding: '10px 5px',
+            }}>
+              {highlightText(item.summary || "কোন তথ্য নেই", searchQuery)}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'second' && (
+          <div>
+            <div className="d-flex justify-content-end gap-1" style={{ padding: '10px 5px 0 5px' }}>
+              <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.ancillary_issue || "কোন তথ্য নেই")}>কপি</Button>
+              <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleSave(item, 'ancillary', item.ancillary_issue || "কোন তথ্য নেই")}>সেভ</Button>
+            </div>
+            <div style={{ 
+              whiteSpace: "pre-wrap", 
+              fontSize: `${fontSize - 2}px`, 
+              color: darkMode ? '#fff' : '#000',
+              backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
+              padding: '10px 5px',
+            }}>
+              {highlightText(item.ancillary_issue || "কোন তথ্য নেই", searchQuery)}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 export default function App() {
   const [db, setDb] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -345,16 +419,13 @@ export default function App() {
         .btn-close {
           filter: invert(1) grayscale(100%) brightness(200%) !important;
         }
-        /* ✅ সম্পূর্ণ পেজ, কার্ড এবং ট্যাবের বাড়তি ফাঁকা জায়গা বন্ধ করা হলো */
         body, html, #root { margin: 0 !important; padding: 0 !important; overflow-x: hidden; max-width: 100%; width: 100%; }
         .card { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
         .card-body { padding: 0 !important; }
-        .tab-content { padding: 0 !important; margin: 0 !important; }
-        .tab-pane { padding: 0 !important; margin: 0 !important; }
       `}</style>
 
       <Navbar sticky="top" className="bg-warning px-2 shadow-sm" style={{ margin: 0 }}>
-        <Container fluid style={{ padding: '0 1 '}}>
+        <Container fluid style={{ padding: '0 8px' }}>
           <Dropdown>
             <Dropdown.Toggle variant="success" id="book-dropdown" size="sm">
               {selectedBook ? selectedBook : "সব বই"}
@@ -408,14 +479,13 @@ export default function App() {
                   
                   <Card.Body className="p-0 m-0" style={{ padding: '0px', margin: '0px' }}> 
                     
-                    {/* ১. মূল আয়াতের টেক্সট */}
                     <div 
                       className={`mb-0 ${darkMode ? 'text-light' : 'text-dark'}`} 
                       style={{ 
                         whiteSpace: "pre-wrap", 
                         fontSize: `${fontSize}px`, 
                         backgroundColor: darkMode ? '#333' : '#e9ecef',
-                        padding: '2px' // এখানে ১০ পিক্সেল প্যাডিং রাখা হলো
+                        padding: '10px'
                       }}
                     >
                       {highlightText(item.verses, searchQuery)}
@@ -424,67 +494,21 @@ export default function App() {
                       </span>
                     </div>
                     
-                    {/* ২. কপি ও সেভ বাটন */}
-                    <div className="d-flex gap-1" style={{ padding: '10px 2px 0 2px' }}>
+                    <div className="d-flex gap-1" style={{ padding: '10px 5px 0 5px' }}>
                       <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.verses)}>কপি</Button>
                       <Button variant="outline-warning" size="sm" className="flex-fill" onClick={() => handleSave(item, 'verses', item.verses)}>সেভ</Button>
                     </div>
 
-                    {/* ৩. ট্যাব সেকশন */}
-                    <Tab.Container id={`tabs-${index}`}>
-                      
-                      <Nav variant="pills" className="flex-row gap-1" style={{ padding: '10px 2px 0 2px' }}>
-                        <Nav.Item className="flex-fill text-center">
-                          <Nav.Link eventKey="first" className={darkMode ? "text-light border border-secondary py-1" : "text-dark border py-1"}>
-                            সারসংক্ষেপ
-                          </Nav.Link>
-                        </Nav.Item>
-                        <Nav.Item className="flex-fill text-center">
-                          <Nav.Link eventKey="second" className={darkMode ? "text-light border border-secondary py-1" : "text-dark border py-1"}>
-                            আনুষঙ্গিক বিষয়
-                          </Nav.Link>
-                        </Nav.Item>
-                      </Nav>
+                    {/* ✅ এখানে নতুন কম্পোনেন্টটি ব্যবহার করা হলো */}
+                    <TafsirContent 
+                      item={item} 
+                      darkMode={darkMode} 
+                      fontSize={fontSize} 
+                      searchQuery={searchQuery} 
+                      handleCopy={handleCopy} 
+                      handleSave={handleSave} 
+                    />
 
-                      {/* এখানে Tab.Content এর প্যাডিং 0 করা হলো */}
-                      <Tab.Content style={{ padding: '0px', margin: '0px' }}>
-                        <Tab.Pane eventKey="first">
-                          
-                          {/* বাটন এরিয়া */}
-                          <div className="d-flex justify-content-end gap-1" style={{ padding: '10px 5px 0 5px' }}>
-                            <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.summary || "কোন তথ্য নেই")}>কপি</Button>
-                            <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleSave(item, 'summary', item.summary || "কোন তথ্য নেই")}>সেভ</Button>
-                          </div>
-
-                          {/* টেক্সট এরিয়া (এখানে হালকা প্যাডিং ৫ দেওয়া হলো) */}
-                          <div style={{ 
-                            whiteSpace: "pre-wrap", 
-                            fontSize: `${fontSize - 2}px`, 
-                            color: darkMode ? '#fff' : '#000',
-                            backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
-                            padding: '10px 2px', // লেখা কিনারায় না লাগার জন্য পিক্সেল
-                          }}>
-                            {highlightText(item.summary || "কোন তথ্য নেই", searchQuery)}
-                          </div>
-                        </Tab.Pane>
-                        
-                        <Tab.Pane eventKey="second">
-                          <div className="d-flex justify-content-end gap-1" style={{ padding: '10px 2px 0 2px' }}>
-                            <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.ancillary_issue || "কোন তথ্য নেই")}>কপি</Button>
-                            <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleSave(item, 'ancillary', item.ancillary_issue || "কোন তথ্য নেই")}>সেভ</Button>
-                          </div>
-                          <div style={{ 
-                            whiteSpace: "pre-wrap", 
-                            fontSize: `${fontSize - 2}px`, 
-                            color: darkMode ? '#fff' : '#000',
-                            backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
-                            padding: '10px 2px', // লেখা কিনারায় না লাগার জন্য ২ পিক্সেল
-                          }}>
-                            {highlightText(item.ancillary_issue || "কোন তথ্য নেই", searchQuery)}
-                          </div>
-                        </Tab.Pane>
-                      </Tab.Content>
-                    </Tab.Container>
                   </Card.Body>
                 </Card>
               ))
