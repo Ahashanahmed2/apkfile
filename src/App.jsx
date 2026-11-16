@@ -345,12 +345,12 @@ export default function App() {
         .btn-close {
           filter: invert(1) grayscale(100%) brightness(200%) !important;
         }
-        /* ✅ পুরো বডি এবং কন্টেইনারের বাড়তি ফাঁকা জায়গা বন্ধ করা হলো */
+        /* ✅ সম্পূর্ণ পেজের ডিফল্ট ফাঁকা জায়গা বন্ধ করা হলো */
         body, html, #root { margin: 0 !important; padding: 0 !important; overflow-x: hidden; max-width: 100%; width: 100%; }
         
-        /* ✅ কার্ডের ডিফল্ট বর্ডার রেডিয়াস এবং বডির প্যাডিং জোরপূর্বক 0 করা হলো */
+        /* ✅ কার্ডের বর্ডার রেডিয়াস এবং ডিফল্ট প্যাডিং শূন্য করা হলো */
         .card { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
-        .card-body { padding-left: 0 !important; padding-right: 0 !important; }
+        .card-body { padding: 0 !important; } 
       `}</style>
 
       <Navbar sticky="top" className="bg-warning px-2 shadow-sm" style={{ margin: 0 }}>
@@ -406,15 +406,17 @@ export default function App() {
                     <span>{item.name} ({item.number})</span>
                   </Card.Header>
                   
-                  {/* ✅ Card.Body এর ভেতরের padding 0 করে দেওয়া হলো, এবং ভেতরের ডিভে 10px padding দেওয়া হলো */}
-                  <Card.Body className="p-0"> 
+                  {/* ✅ Card.Body এর ভেতরের সব মার্জিন/প্যাডিং 0 করা হলো */}
+                  <Card.Body className="p-0 m-0" style={{ padding: '0px', margin: '0px' }}> 
+                    
+                    {/* ১. মূল আয়াতের টেক্সট (এখানে হালকা প্যাডিং ১০ রাখা হলো যাতে লেখা কিনারায় না লাগে) */}
                     <div 
                       className={`mb-0 ${darkMode ? 'text-light' : 'text-dark'}`} 
                       style={{ 
                         whiteSpace: "pre-wrap", 
                         fontSize: `${fontSize}px`, 
                         backgroundColor: darkMode ? '#333' : '#e9ecef',
-                        padding: '10px' // টেক্সট এরিয়ার ভেতরের প্যাডিং
+                        padding: '10px'
                       }}
                     >
                       {highlightText(item.verses, searchQuery)}
@@ -423,14 +425,16 @@ export default function App() {
                       </span>
                     </div>
                     
-                    <div className="d-flex gap-2 p-2 pb-0">
+                    {/* ২. কপি ও সেভ বাটন */}
+                    <div className="d-flex gap-1" style={{ padding: '10px 10px 0 10px' }}>
                       <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.verses)}>কপি</Button>
                       <Button variant="outline-warning" size="sm" className="flex-fill" onClick={() => handleSave(item, 'verses', item.verses)}>সেভ</Button>
                     </div>
 
+                    {/* ৩. ট্যাব সেকশন */}
                     <Tab.Container id={`tabs-${index}`} defaultActiveKey="first">
                       
-                      <Nav variant="pills" className="flex-row m-2 gap-2">
+                      <Nav variant="pills" className="flex-row gap-1" style={{ padding: '10px 10px 0 10px' }}>
                         <Nav.Item className="flex-fill text-center">
                           <Nav.Link eventKey="first" className={darkMode ? "text-light border border-secondary py-1" : "text-dark border py-1"}>
                             সারসংক্ষেপ
@@ -443,7 +447,7 @@ export default function App() {
                         </Nav.Item>
                       </Nav>
 
-                      <Tab.Content className="p-2 pt-0">
+                      <Tab.Content style={{ padding: '10px' }}>
                         <Tab.Pane eventKey="first">
                           <div className="d-flex justify-content-end mb-2 gap-1">
                             <Button variant="outline-secondary" size="sm" className="flex-fill" onClick={() => handleCopy(item.summary || "কোন তথ্য নেই")}>কপি</Button>
@@ -455,7 +459,7 @@ export default function App() {
                             color: darkMode ? '#fff' : '#000',
                             backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
                             padding: '10px',
-                            borderRadius: '8px'
+                            borderRadius: '5px'
                           }}>
                             {highlightText(item.summary || "কোন তথ্য নেই", searchQuery)}
                           </div>
@@ -472,7 +476,7 @@ export default function App() {
                             color: darkMode ? '#fff' : '#000',
                             backgroundColor: darkMode ? '#2b2b2b' : '#f8f9fa',
                             padding: '10px',
-                            borderRadius: '8px'
+                            borderRadius: '5px'
                           }}>
                             {highlightText(item.ancillary_issue || "কোন তথ্য নেই", searchQuery)}
                           </div>
