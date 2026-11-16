@@ -431,7 +431,7 @@ export default function App() {
                     </div>
 
                     {/* ৩. ট্যাব সেকশন */}
-                    <Tab.Container id={`tabs-${index}`} defaultActiveKey="first">
+                    <Tab.Container id={`tabs-${index}`}>
                       
                       <Nav variant="pills" className="flex-row gap-1" style={{ padding: '10px 5px 0 5px' }}>
                         <Nav.Item className="flex-fill text-center">
