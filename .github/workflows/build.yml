@@ -45,15 +45,10 @@ jobs:
         run: |
           npm install @tauri-apps/plugin-clipboard-manager
 
-      # ✅ ১. আপনার দেওয়া asdFGH নাম ব্যবহার করে চাবি তৈরি করা
-      - name: Generate Custom Keystore
+      # ✅ ১. একবার তৈরি করা চাবিটি ডিকোড করা (নতুন করে তৈরি হবে না)
+      - name: Decode Keystore
         run: |
-          keytool -genkeypair -v -keystore ${{ github.workspace }}/my-release-key.jks \
-            -alias ${{ secrets.ANDROID_KEY_ALIAS }} \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass ${{ secrets.ANDROID_STORE_PASSWORD }} \
-            -keypass ${{ secrets.ANDROID_KEY_PASSWORD }} \
-            -dname "CN=Tafsir App, OU=Dev, O=Tafsir, L=Dhaka, ST=Dhaka, C=BD"
+          echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 --decode > ${{ github.workspace }}/my-release-key.jks
           
       - name: Init Android project
         run: npx tauri android init --ci
@@ -62,7 +57,7 @@ jobs:
       - name: Build APK
         run: npx tauri android build --apk
 
-      # ✅ ৩. আপনার নিজের চাবি দিয়ে APK সাইন করা
+      # ✅ ৩. ডিকোড করা চাবি দিয়ে APK সাইন করা
       - name: Sign APK with Custom Keystore
         run: |
           cd src-tauri/gen/android/app/build/outputs/apk/universal/release/
